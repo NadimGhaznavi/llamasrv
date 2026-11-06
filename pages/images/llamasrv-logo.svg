@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">llamasrv logo</title>
+  <desc id="description">A light-colored llama above a cyan server tray on a transparent background.</desc>
+  <path fill="#e6edf3" d="M88 144v-39l-7-49q-1-9 6-11 7-1 11 7l13 34h34l13-34q4-8 11-7 7 2 6 11l-7 49v39q0 24-22 30h-36q-22-6-22-30Z"/>
+  <path fill="none" stroke="#253447" stroke-linecap="round" stroke-width="6" d="m91 60 8 29m66-29-8 29"/>
+  <circle cx="109" cy="119" r="5" fill="#253447"/>
+  <circle cx="147" cy="119" r="5" fill="#253447"/>
+  <ellipse cx="128" cy="144" rx="20" ry="16" fill="#b8c9d9"/>
+  <path fill="none" stroke="#253447" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="m123 139 5 4 5-4m-5 4v7m0 0q-5 6-10 1m10-1q5 6 10 1"/>
+  <rect x="52" y="182" width="152" height="44" rx="12" fill="#1d2735" stroke="#67e8d0" stroke-width="7"/>
+  <circle cx="74" cy="204" r="5" fill="#67e8d0"/>
+  <path stroke="#67e8d0" stroke-linecap="round" stroke-width="6" d="M94 204h49"/>
+  <circle cx="178" cy="204" r="8" fill="none" stroke="#67e8d0" stroke-width="4"/>
+</svg>

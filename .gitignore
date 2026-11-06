@@ -205,6 +205,11 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# GitHub Pages / Jekyll
+_site/
+.jekyll-cache/
+.jekyll-metadata
+
 # Ruff stuff:
 .ruff_cache/
 
