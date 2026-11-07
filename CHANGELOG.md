@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rewrote the project documentation for readers: separate install, upgrade and uninstall guides, runtime examples, a clearer installation inventory, and a shorter project-structure page.
+
 ## [0.2.0] - 2026-11-07 @ 04:52
 
 ### Summary
@@ -102,3 +106,4 @@ operator-owned runtime settings survive installation and upgrades.
 ---
 
 [Documentation index]({{ site.baseurl }}{% link index.md %})
+
