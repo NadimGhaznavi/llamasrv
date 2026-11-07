@@ -6,29 +6,33 @@ language_name: English
 translation_key: llamasrv-development
 ---
 
-LlamaSrv is a Python application with two independent systemd services. The HTTP service provides the control panel. The inference service launches the external `llama-server` executable. Both read the same JSON configuration.
+LlamaSrv has two independent processes. The HTTP service manages configuration and systemd controls; the inference service launches llama.cpp with the selected model. Applications connect directly to the inference endpoint, without going through the web interface.
 
-## Repository layout
+## Application structure
 
 | Location | Purpose |
 | --- | --- |
-| `llamasrv/constants/` | Project settings, model defaults, listener ports, and service names |
-| `llamasrv/interface/` | Configuration validation, llama.cpp integration, and systemd operations |
-| `llamasrv/activity/` | Launch and service-control workflows |
-| `llamasrv/server/` | HTTP API, control-panel templates, JavaScript, and CSS |
-| `llamasrv/locales/` | Interface strings and translations |
-| `scripts/` | Installation, upgrade, uninstall, and service helpers |
+| `llamasrv/constants/DLlamaSrv.py` | Project identity, installation path, and default ports |
+| `llamasrv/constants/DLlama.py`, `DQwen.py`, `DService.py` | Inference settings, default model, and systemd names |
+| `llamasrv/interface/Configuration.py` | Load and validate persistent JSON settings |
+| `llamasrv/interface/Network.py` | Resolve listener and client addresses |
+| `llamasrv/interface/Llama.py` | Build the llama.cpp command and check readiness |
+| `llamasrv/interface/Services.py` | Start, stop, install, and check systemd services |
+| `llamasrv/activity/RunLlama.py` | Launch the selected model |
+| `llamasrv/activity/ManageServices.py` | Control both installed services |
+| `llamasrv/activity/ControlPanel.py` | Save browser settings and restart inference |
+| `llamasrv/server/` | HTTP endpoints, control-panel templates, and static assets |
+| `llamasrv/locales/` | Interface text and translations |
 | `systemd/` | Unit templates and restricted sudoers policy |
-| `tests/` | Configuration, HTTP, process, and installation tests |
+| `scripts/` | Install, upgrade, uninstall, and helper commands |
+| `tests/` | Configuration, HTTP, runtime, and deployment tests |
 | `pages/` | Website and user documentation |
 
-For example, `Configuration.py` validates settings, `RunLlama.py` launches the selected model, and `ControlPanel.py` handles browser-driven configuration and restart operations.
-
-The installed application lives in `/opt/prod/llamasrv`. The llama.cpp binary and model files stay outside the application so other projects can use the same inference endpoint without depending on LlamaSrv's implementation.
+The installed code and JSON configuration live in `/opt/prod/llamasrv`. The llama.cpp binary and models remain external, so the service can be shared with applications such as R3el and ND3G.
 
 ## Local development
 
-Use Python 3.11 or newer. A GPU is not required for the automated tests:
+Use Python 3.11 or newer. Automated tests do not require a GPU:
 
 ```sh
 python3 -m venv .venv
@@ -36,9 +40,9 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Deployment tests also expect Linux tools such as Bash, `systemd-analyze`, and `visudo`; service operations are simulated. The project uses pinned BMForge skills in `.agents/` for its development conventions.
+Installation tests also expect Linux tools such as Bash, `systemd-analyze`, and `visudo`; they simulate systemd operations. Engineering conventions are pinned under `.agents/` using BMForge skills.
 
-For deployment instructions, see [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %}).
+For deployment, see [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %}).
 
 ---
 
