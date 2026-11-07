@@ -17,6 +17,7 @@ parser.add_argument('--host', required=True)
 parser.add_argument('--port', type=int, required=True)
 parser.add_argument('--metrics', action='store_true')
 parser.add_argument('--jinja', action='store_true')
+parser.add_argument('--no-jinja', dest='jinja', action='store_false')
 args = parser.parse_args()
 if os.environ.get('LLAMASRV_TEST_ARGUMENTS'):
     Path(os.environ['LLAMASRV_TEST_ARGUMENTS']).write_text(json.dumps(vars(args)))

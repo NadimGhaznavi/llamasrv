@@ -1,7 +1,9 @@
 """Disposable lifecycle tests: simulated systemd controls real installed processes."""
 
 import json
+from http.client import HTTPConnection
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -13,17 +15,18 @@ from llamasrv.constants.DLlamaSrv import DLlamaSrv
 from llamasrv.constants.DQwen import DQwen
 from llamasrv.constants.DService import DService
 from llamasrv.interface.Llama import probe
-from scripts.install import Installation, MANIFEST, SYSTEM_PYTHON, VERSION_MARKER
-from support import ROOT, fixture_configuration
+from scripts.install import Installation, MANIFEST, SYSTEM_PYTHON, VERSION_MARKER, SUDOERS_OWNED
+from support import ROOT, fixture_configuration, dependency_wheels
 
 
 class LocalSystem:
     """Only systemd/account operations are simulated; Python and HTTP are real."""
-    def __init__(self, destination, unit_dir, health):
+    def __init__(self, destination, unit_dir, health, wheels):
         self.destination, self.unit_dir, self.health = destination, unit_dir, health
         self.calls = []
         self.processes = {}
         self.fail = None
+        self.wheels = wheels
 
     def close(self):
         for process in self.processes.values():
@@ -37,6 +40,13 @@ class LocalSystem:
 
     def __call__(self, command, **kwargs):
         self.calls.append(command)
+        if command[0] == 'chown':
+            return subprocess.CompletedProcess(command, 0, '', '')
+        if '-m' in command and 'pip' in command:
+            if self.fail == 'pip':
+                raise subprocess.CalledProcessError(1, command, stderr='fixture pip failure')
+            kwargs['env'] = {**kwargs.get('env', {}), 'PIP_NO_INDEX': '1',
+                             'PIP_FIND_LINKS': str(self.wheels)}
         if command[0] == 'getent':
             return subprocess.CompletedProcess(command, 0, 'fixture account\n', '')
         if command[0] == DService.RUNUSER:
@@ -61,7 +71,7 @@ class LocalSystem:
             environment = Installation.python_environment()
             environment['LLAMASRV_TEST_HEALTH'] = str(self.health)
             self.processes[name] = subprocess.Popen([
-                SYSTEM_PYTHON, '-B', '-m', module, '--config',
+                str(self.destination / '.venv/bin/python'), '-B', '-m', module, '--config',
                 str(self.destination / 'conf/llamasrv.json')], cwd=self.destination,
                 env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif action == 'stop':
@@ -76,6 +86,12 @@ class LocalSystem:
 
 
 class InstallationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.wheel_directory = tempfile.TemporaryDirectory(prefix='llamasrv-test-wheels-')
+        cls.addClassCleanup(cls.wheel_directory.cleanup)
+        dependency_wheels(Path(cls.wheel_directory.name))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -85,13 +101,21 @@ class InstallationTests(unittest.TestCase):
         for name in ('llamasrv', 'scripts', 'systemd'):
             shutil.copytree(ROOT / name, self.checkout / name,
                             ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        shutil.copyfile(ROOT / 'requirements.txt', self.checkout / 'requirements.txt')
+        # Only the disposable checkout uses fixed versions for lifecycle transitions.
+        metadata = self.checkout / 'llamasrv/constants/DLlamaSrv.py'
+        metadata.write_text(re.sub(r'(?m)^(    VERSION: Final\[str\] = )"[^"]+"$',
+                                   r'\g<1>"0.0.0"', metadata.read_text()))
         self.destination = self.base / 'installed app'
         self.unit_dir = self.base / 'units'
         self.unit_dir.mkdir()
+        self.sudoers_dir = self.base / 'sudoers.d'
+        self.sudoers_dir.mkdir()
         self.values = fixture_configuration(self.base)
         self.health = self.base / 'health'
         self.health.write_text('ok')
-        self.system = LocalSystem(self.destination, self.unit_dir, self.health)
+        self.system = LocalSystem(self.destination, self.unit_dir, self.health,
+                                  Path(self.wheel_directory.name))
         self.addCleanup(self.system.close)
         defaults = self.values['llama']
         patches = [patch.object(DLlama, 'DEFAULT_BINARY', defaults['binary']),
@@ -107,7 +131,8 @@ class InstallationTests(unittest.TestCase):
 
     def installer(self, **options):
         return Installation(self.checkout, destination=self.destination,
-                            unit_dir=self.unit_dir, run=self.system, startup_timeout=3, **options)
+                            unit_dir=self.unit_dir, sudoers_dir=self.sudoers_dir,
+                            run=self.system, startup_timeout=3, **options)
 
     def snapshot(self):
         return {str(path.relative_to(self.base)): (path.read_bytes(), path.stat().st_mode)
@@ -138,16 +163,23 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual((self.destination / VERSION_MARKER).read_text(), '0.0.0\n')
         self.assertTrue(probe('127.0.0.1', self.values['network']['http']['port'],
                               components=('http', 'llm')))
-        self.assertFalse((self.destination / '.venv').exists())
+        self.assertTrue((self.destination / '.venv/bin/python').is_file())
+        sudoers = self.sudoers_dir / DService.SUDOERS_FILE
+        self.assertEqual(sudoers.stat().st_mode & 0o777, 0o440)
+        self.assertEqual(sudoers.read_text(), (ROOT / 'systemd/llamasrv.sudoers').read_text())
+        self.assertTrue(json.loads((self.destination / MANIFEST).read_text())[SUDOERS_OWNED])
         for name in DService.START_ORDER:
             text = (self.unit_dir / name).read_text()
             self.assertNotIn('/opt/dev/', text)
             self.assertIn(str(self.destination), text)
             self.assertIn('ProtectSystem=strict', text)
             self.assertEqual((self.unit_dir / name).stat().st_mode & 0o777, 0o644)
+            self.assertIn(str(self.destination / '.venv/bin/python'), text)
+        self.assertIn('NoNewPrivileges=false', (self.unit_dir / DService.HTTP).read_text())
+        self.assertIn('NoNewPrivileges=true', (self.unit_dir / DService.LLM).read_text())
         self.installer().apply('install')
         settings = json.loads(configuration.read_text())
-        settings['llama'].update(mmproj=None, context_size=4096, metrics=False)
+        settings['llama'].update(mmproj=None, context_size=4096, metrics=False, jinja=False)
         configuration.write_text(json.dumps(settings) + '\n')
         saved = configuration.read_bytes()
         user_file = self.destination / 'notes.txt'
@@ -176,16 +208,25 @@ class InstallationTests(unittest.TestCase):
         self.checkout.rename(hidden)
         try:
             result = subprocess.run([
-                SYSTEM_PYTHON, '-B', '-m', 'llamasrv.activity.RunLlama', '--config',
+                str(self.destination / '.venv/bin/python'), '-B', '-m', 'llamasrv.activity.RunLlama', '--config',
                 str(self.destination / 'conf/llamasrv.json'), '--check'],
                 cwd=self.destination, env=Installation.python_environment(),
                 capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             installer = Installation(hidden, destination=self.destination,
-                                     unit_dir=self.unit_dir, run=self.system, startup_timeout=3)
+                                     unit_dir=self.unit_dir, sudoers_dir=self.sudoers_dir,
+                                     run=self.system, startup_timeout=3)
             installer.services.start()
             from llamasrv.interface.Configuration import Configuration
             installer.services.wait_ready(Configuration(self.destination / 'conf/llamasrv.json'))
+            connection = HTTPConnection('127.0.0.1', self.values['network']['http']['port'], timeout=3)
+            try:
+                connection.request('GET', '/')
+                response = connection.getresponse()
+                self.assertEqual(response.status, 200)
+                self.assertIn(b'Restart LLM', response.read())
+            finally:
+                connection.close()
         finally:
             hidden.rename(self.checkout)
 
@@ -200,6 +241,8 @@ class InstallationTests(unittest.TestCase):
         self.assertTrue(Path(self.values['llama']['binary']).exists())
         self.assertFalse((self.destination / VERSION_MARKER).exists())
         self.assertFalse(list(self.unit_dir.iterdir()))
+        self.assertFalse((self.sudoers_dir / DService.SUDOERS_FILE).exists())
+        self.assertFalse((self.destination / '.venv').exists())
         self.installer().apply('uninstall')
         self.installer().apply('install')
         self.assertEqual(configuration.read_bytes(), saved)
@@ -265,11 +308,44 @@ class InstallationTests(unittest.TestCase):
 
     def test_missing_tools_and_owned_path_symlinks_are_refused(self):
         with patch('scripts.install.shutil.which', return_value=None):
-            with self.assertRaisesRegex(ValueError, 'prerequisite'):
+            with self.assertRaisesRegex(ValueError, 'prerequisite|interpreter'):
                 self.installer().apply('install', check=True)
         self.destination.symlink_to(self.base / 'other')
         with self.assertRaisesRegex(ValueError, 'symbolic link'):
             self.installer()
+
+    def test_unowned_sudoers_is_never_overwritten_or_removed(self):
+        target = self.sudoers_dir / DService.SUDOERS_FILE
+        target.write_text('# operator-owned policy\n')
+        before = self.snapshot()
+        for check in (True, False):
+            with self.assertRaisesRegex(ValueError, 'unowned sudoers'):
+                self.installer().apply('install', check=check)
+            self.assertEqual(self.snapshot(), before)
+        self.installer().apply('uninstall')
+        self.assertEqual(target.read_text(), '# operator-owned policy\n')
+
+    def test_invalid_sudoers_fails_before_installation_or_service_changes(self):
+        (self.checkout / 'systemd/llamasrv.sudoers').write_text('invalid sudoers !!!')
+        before = self.snapshot()
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.installer().apply('install')
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(any(call[:2] == ['systemctl', 'stop'] for call in self.system.calls))
+
+    def test_dependency_failure_and_unowned_venv_do_not_claim_success(self):
+        self.system.fail = 'pip'
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.installer().apply('install')
+        self.assertFalse((self.destination / VERSION_MARKER).exists())
+        self.system.fail = None
+        self.installer().apply('install')
+        ownership_path = self.destination / MANIFEST
+        ownership = json.loads(ownership_path.read_text())
+        ownership['venv_owned'] = False
+        ownership_path.write_text(json.dumps(ownership))
+        with self.assertRaisesRegex(ValueError, 'unowned virtual environment'):
+            self.installer().apply('upgrade', check=True)
 
 
 if __name__ == '__main__':

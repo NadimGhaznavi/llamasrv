@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07 @ 04:52
+
+### Summary
+
+Manage local inference through a browser control panel, with validated settings,
+live readiness and narrowly authorized service restarts. Honor explicit Jinja
+disable settings and keep installation tests reliable across releases.
+
+### Added
+
+- Dark, responsive HTTP control panel based on the configuration/status sketch,
+  using the project logo, installed GGUF and projector selectors, English message
+  keys, atomic settings updates, restart confirmation and live readiness.
+- Passwordless start/stop grants for exactly the HTTP and LLM systemd units in
+  `/etc/sudoers.d/llamasrv`, validated before installation and tracked for removal
+  during uninstall. The LLM restart uses sequential noninteractive stop/start.
+- Isolated production Jinja2 runtime and writable service-owned configuration,
+  while keeping application code and the sudoers policy owned by root.
+- HTTP and offline installation acceptance coverage for configuration validation,
+  exact sudo commands, policy ownership/removal and isolated deployed rendering;
+  operator documentation for the browser and service permissions.
+
+### Fixed
+
+- Explicitly disable llama.cpp chat templating with `--no-jinja` when runtime
+  `jinja` is false; omitting `--jinja` left it enabled on builds such as wintermute's.
+- Keep disposable lifecycle-test versions independent of the repository's
+  current release metadata.
+
+### Changed
+
+- Updated site logo, again.
+
 ## [0.1.0] - 2026-11-07 @ 03:28
 
 ### Summary

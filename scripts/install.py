@@ -26,15 +26,16 @@ COPY_TREES = ("llamasrv", "scripts", "systemd")
 COPY_FILES = ()
 # Set to "requirements.txt" for Python applications requiring a production venv.
 # Keep None for applications without Python package dependencies.
-REQUIREMENTS_FILE = None
+REQUIREMENTS_FILE = "requirements.txt"
 VENV_DIR = ".venv"
 # Use the host interpreter, never an activated development checkout venv.
 SYSTEM_PYTHON = "/usr/bin/python3"
 # Adapt to the deployed application's service/client imports when enabling deployment.
-RUNTIME_IMPORTS = ("llamasrv",)
+RUNTIME_IMPORTS = ("llamasrv.server.LlamaSrvServer", "llamasrv.activity.RunLlama", "jinja2")
 MANIFEST = ".installation-manifest.json"
 VERSION_MARKER = ".deployment-version"
 SERVICE_UNITS = "service_units"
+SUDOERS_OWNED = "sudoers_owned"
 
 
 def relative_path(name: str) -> str:
@@ -57,8 +58,10 @@ def reject_symlinks(path: Path) -> None:
 class Installation:
     def __init__(self, checkout: Path, *, destination: Path | None = None,
                  run=None, unit_dir: Path | None = None,
+                 sudoers_dir: Path | None = None,
                  startup_timeout: float = DService.STARTUP_TIMEOUT) -> None:
-        self.services = Services(run=run, unit_dir=unit_dir, startup_timeout=startup_timeout)
+        self.services = Services(run=run, unit_dir=unit_dir, sudoers_dir=sudoers_dir,
+                                 startup_timeout=startup_timeout)
         self.checkout = checkout.resolve()
         self.run = run or subprocess.run
         self.version_file = f"{PROJECT_NAME.lower()}/constants/D{PROJECT_NAME}.py"
@@ -86,6 +89,8 @@ class Installation:
             raise ValueError("Installation ownership manifest does not match this project")
         if type(data.get('venv_owned', False)) is not bool:
             raise ValueError("Installation manifest has invalid virtual environment ownership")
+        if type(data.get(SUDOERS_OWNED, False)) is not bool:
+            raise ValueError("Installation manifest has invalid sudoers ownership")
         units = data.get(SERVICE_UNITS, [])
         if (not isinstance(units, list) or any(name not in DService.START_ORDER for name in units)
                 or len(units) != len(set(units))):
@@ -262,18 +267,32 @@ class Installation:
         manifest = self.destination / MANIFEST
         return json.loads(manifest.read_text()).get(SERVICE_UNITS, []) if manifest.is_file() else []
 
+    def owns_sudoers(self) -> bool:
+        manifest = self.destination / MANIFEST
+        return manifest.is_file() and json.loads(manifest.read_text()).get(SUDOERS_OWNED) is True
+
     def preflight_services(self, action: str) -> None:
         owned = self.owned_units()
-        if action == 'uninstall' and not owned:
+        if action == 'uninstall' and not owned and not self.owns_sudoers():
             return
         commands = ('systemctl',) if action == 'uninstall' else (
-            'systemctl', 'systemd-analyze', 'getent', DService.USERADD, DService.RUNUSER)
+            'systemctl', 'systemd-analyze', 'getent', DService.USERADD, DService.RUNUSER,
+            DService.SUDO, DService.VISUDO, 'chown')
         for command in commands:
             if shutil.which(command) is None:
                 raise ValueError(self.services.text(DText.INSTALL_PREREQUISITE, setting=command))
         reject_symlinks(self.services.unit_dir)
         if not self.services.unit_dir.is_dir():
             raise ValueError(self.services.text(DText.INSTALL_UNIT_DIRECTORY, path=self.services.unit_dir))
+        sudoers = self.services.sudoers_dir / DService.SUDOERS_FILE
+        reject_symlinks(sudoers)
+        if self.owns_sudoers():
+            if sudoers.exists() and not sudoers.is_file():
+                raise ValueError(f'Sudoers target is not a regular file: {sudoers}')
+        elif action != 'uninstall' and sudoers.exists():
+            raise ValueError(f'Refusing to replace an unowned sudoers file: {sudoers}')
+        if action != 'uninstall' and not self.services.sudoers_dir.is_dir():
+            raise ValueError(f'Missing sudoers include directory: {self.services.sudoers_dir}')
         for name in DService.START_ORDER:
             target = self.services.unit_dir / name
             reject_symlinks(target)
@@ -281,6 +300,7 @@ class Installation:
                 raise ValueError(self.services.text(DText.INSTALL_UNOWNED_UNIT, path=target))
         if action == 'uninstall':
             return
+        self.services.verify_sudoers(self.checkout)
         self.configuration_path = self.destination / DNetwork.CONFIG_FILE
         reject_symlinks(self.configuration_path)
         self.configuration = Configuration(self.configuration_path)
@@ -312,6 +332,8 @@ class Installation:
         if action == 'uninstall':
             if previous is not None:
                 self.services.uninstall(self.owned_units())
+                if self.owns_sudoers():
+                    (self.services.sudoers_dir / DService.SUDOERS_FILE).unlink(missing_ok=True)
                 self.remove_files(previous)
                 venv = self.destination / VENV_DIR
                 reject_symlinks(venv)
@@ -328,13 +350,18 @@ class Installation:
             print(f"Removed managed {PROJECT_NAME} services and files; configuration and data retained.")
             return
         # Validate unit syntax before stopping an existing installation.
-        self.services.verify(self.units)
+        # The production venv does not exist on a fresh installation. Validate
+        # syntax with the known host interpreter before changing services, then
+        # verify the actual deployed command once its environment is prepared.
+        self.services.verify(self.services.render(
+            self.checkout, self.destination, Path(SYSTEM_PYTHON), self.configuration_path))
         self.services.ensure_account()
         self.services.stop(self.owned_units())
         self.destination.mkdir(parents=True, exist_ok=True)
         self.destination.chmod(0o755)
         ownership = {'project': PROJECT_NAME, 'files': sorted(set(previous or ()) | set(names)),
                      'venv_owned': REQUIREMENTS_FILE is not None or self.venv_owned(),
+                     SUDOERS_OWNED: True,
                      SERVICE_UNITS: list(DService.START_ORDER)}
         self.atomic_write(self.destination / MANIFEST,
                           (json.dumps(ownership, indent=2) + '\n').encode())
@@ -345,10 +372,14 @@ class Installation:
         if not self.configuration_path.exists():
             self.atomic_write(self.configuration_path,
                               (json.dumps(self.configuration.as_dict(), indent=2) + '\n').encode())
+        self.services.command('chown', DService.ACCOUNT + ':' + DService.ACCOUNT,
+                              str(self.configuration_path.parent), str(self.configuration_path))
         self.prepare_python()
+        self.services.verify(self.units)
         self.verify_runtime()
         self.remove_files(sorted(set(previous or ()) - set(names)))
         self.services.install(self.units)
+        self.services.install_sudoers(self.checkout)
         self.services.start()
         self.services.wait_ready(self.configuration)
         ownership['files'] = names

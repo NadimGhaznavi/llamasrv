@@ -23,5 +23,6 @@ class DLlama:
     PORT_OPTION: Final[str] = "--port"
     METRICS_OPTION: Final[str] = "--metrics"
     JINJA_OPTION: Final[str] = "--jinja"
+    NO_JINJA_OPTION: Final[str] = "--no-jinja"
     HEALTH_TIMEOUT: Final[float] = 2.0
     HEALTH_RESPONSE_LIMIT: Final[int] = 65536
