@@ -19,11 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Summary
 
 Establish the BMForge application and documentation scaffolds for LlamaSrv,
-including pinned HTTP guidance, version metadata, and prepared release and
-installation tooling.
+with an HTTP server listening on all IPv4 interfaces at port 51000, on-demand
+health checks, and prepared release and installation tooling.
 
 ### Added
 
+- Standard-library threaded HTTP server started with `python3 -m llamasrv`,
+  defaulting to `0.0.0.0:51000` from CMDB metadata, with JSON service information,
+  `/health`, HEAD support, local-time request logs, bounded request timeouts,
+  and graceful shutdown.
+- Validated production JSON listener settings and CLI overrides, English CLI
+  message catalogue, startup documentation, and HTTP/configuration/lifecycle
+  acceptance checks.
 - Pinned `bmforge-github-pages` skill with the local BMForge manager and lock file.
 - Dark-themed Jekyll configuration for `llamasrv.osoyalce.com`, with English
   metadata, multilingual support, and the project's MyCount identifier.

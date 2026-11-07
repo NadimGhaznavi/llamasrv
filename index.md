@@ -16,9 +16,11 @@ Linux systemd service to run llama-server.
 
 ## Project status
 
-This repository contains the BMForge application and documentation scaffolds,
-including version metadata and prepared release and installation tooling.
-The llama-server service and application web interface remain to be implemented.
+The application HTTP server listens on `0.0.0.0:51000` and provides JSON service
+information and an on-demand health endpoint. The repository also contains the
+BMForge application and documentation scaffolds, version metadata, and prepared
+release and installation tooling. The llama-server service and browser interface
+remain to be implemented.
 
 ## Documentation
 

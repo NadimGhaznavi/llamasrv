@@ -1,0 +1,15 @@
+{
+  "server.description": "Run the LlamaSrv HTTP server.",
+  "server.ready": "LlamaSrv listening on http://{host}:{port}/",
+  "server.stopped": "LlamaSrv HTTP server stopped.",
+  "server.failed": "Could not start LlamaSrv HTTP server: {error}",
+  "cli.host": "IPv4 bind address; overrides the configured interface.",
+  "cli.port": "TCP port (1–65535); overrides the configured port.",
+  "cli.config": "Configuration JSON; defaults to {path}. A missing file uses CMDB defaults.",
+  "cli.locale": "Language for command output (default: English).",
+  "config.read_failed": "Could not read configuration {path}: {error}",
+  "config.object_required": "{path}: {setting} must be a JSON object.",
+  "config.unknown_setting": "{path}: unknown setting {setting}.",
+  "config.invalid_host": "{path}: {setting} must be a numeric IPv4 address.",
+  "config.invalid_port": "{path}: {setting} must be an integer from 1 to 65535."
+}
