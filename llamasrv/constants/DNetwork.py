@@ -5,6 +5,7 @@ from typing import Final
 
 class DNetwork:
     HTTP: Final[str] = "http"
+    LLM: Final[str] = "llm"
     CONFIG_FILE: Final[str] = "conf/llamasrv.json"
     NETWORK: Final[str] = "network"
     INTERFACE: Final[str] = "interface"

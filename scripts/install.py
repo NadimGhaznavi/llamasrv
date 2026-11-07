@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source-file deployment baseline; configure project-specific work before use."""
+"""Install, update or remove LlamaSrv; external llama.cpp and models stay untouched."""
 
 import argparse
 import importlib.util
@@ -10,13 +10,19 @@ import shutil
 import subprocess
 import tempfile
 
+from llamasrv.constants.DNetwork import DNetwork
+from llamasrv.constants.DService import DService
+from llamasrv.constants.DText import DText
+from llamasrv.interface.Configuration import Configuration
+from llamasrv.interface.Llama import Llama
+from llamasrv.interface.Services import Services
+
 
 BMFORGE_COMPONENT = {"id": "bmforge.installation", "spec_version": "0.1.3"}
 
 PROJECT_NAME = "LlamaSrv"
-# Turn this on only after implementing the project's full deployment contract.
-DEPLOYMENT_READY = False
-COPY_TREES = ("llamasrv", "scripts")
+DEPLOYMENT_READY = True
+COPY_TREES = ("llamasrv", "scripts", "systemd")
 COPY_FILES = ()
 # Set to "requirements.txt" for Python applications requiring a production venv.
 # Keep None for applications without Python package dependencies.
@@ -28,6 +34,7 @@ SYSTEM_PYTHON = "/usr/bin/python3"
 RUNTIME_IMPORTS = ("llamasrv",)
 MANIFEST = ".installation-manifest.json"
 VERSION_MARKER = ".deployment-version"
+SERVICE_UNITS = "service_units"
 
 
 def relative_path(name: str) -> str:
@@ -49,7 +56,9 @@ def reject_symlinks(path: Path) -> None:
 
 class Installation:
     def __init__(self, checkout: Path, *, destination: Path | None = None,
-                 run=None) -> None:
+                 run=None, unit_dir: Path | None = None,
+                 startup_timeout: float = DService.STARTUP_TIMEOUT) -> None:
+        self.services = Services(run=run, unit_dir=unit_dir, startup_timeout=startup_timeout)
         self.checkout = checkout.resolve()
         self.run = run or subprocess.run
         self.version_file = f"{PROJECT_NAME.lower()}/constants/D{PROJECT_NAME}.py"
@@ -77,6 +86,10 @@ class Installation:
             raise ValueError("Installation ownership manifest does not match this project")
         if type(data.get('venv_owned', False)) is not bool:
             raise ValueError("Installation manifest has invalid virtual environment ownership")
+        units = data.get(SERVICE_UNITS, [])
+        if (not isinstance(units, list) or any(name not in DService.START_ORDER for name in units)
+                or len(units) != len(set(units))):
+            raise ValueError(self.services.text(DText.INSTALL_SERVICE_OWNERSHIP))
         names = [relative_path(name) for name in data['files']]
         if (len(names) != len(set(names))
                 or self.version_file not in names and not (not names and data.get('removed') is True)):
@@ -128,6 +141,7 @@ class Installation:
                 if (self.destination / name).exists():
                     raise ValueError(f"New managed file would overwrite an unowned file: {name}")
         self.preflight_python(action)
+        self.preflight_services(action)
         return previous, current
 
     def venv_owned(self) -> bool:
@@ -148,7 +162,16 @@ class Installation:
         reject_symlinks(venv)
         if venv.exists() and not venv.is_dir():
             raise ValueError(f'Virtual environment path is not a directory: {venv}')
-        if action == 'uninstall' or REQUIREMENTS_FILE is None:
+        if action == 'uninstall':
+            return
+        if REQUIREMENTS_FILE is None:
+            if (not Path(SYSTEM_PYTHON).is_absolute() or '/opt/dev/' in SYSTEM_PYTHON
+                    or not os.access(SYSTEM_PYTHON, os.X_OK)):
+                raise ValueError(f'Missing host Python interpreter: {SYSTEM_PYTHON}')
+            self.run([SYSTEM_PYTHON, '-B', '-c',
+                      'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'],
+                     check=True, env=self.python_environment(), capture_output=True,
+                     text=True, timeout=DService.COMMAND_TIMEOUT)
             return
         requirements = self.checkout / relative_path(REQUIREMENTS_FILE)
         if not requirements.is_file():
@@ -206,6 +229,8 @@ class Installation:
                      check=True, cwd=self.destination, env=environment, timeout=30)
 
     def atomic_write(self, path: Path, content: bytes, mode: int = 0o644) -> None:
+        if not path.is_relative_to(self.destination):
+            raise ValueError(self.services.text(DText.INSTALL_OUTSIDE_PATH, path=path))
         path.parent.mkdir(parents=True, exist_ok=True)
         for directory in (path.parent, *path.parent.parents):
             if directory == self.destination.parent:
@@ -233,6 +258,52 @@ class Installation:
                 except OSError:
                     break
 
+    def owned_units(self) -> list[str]:
+        manifest = self.destination / MANIFEST
+        return json.loads(manifest.read_text()).get(SERVICE_UNITS, []) if manifest.is_file() else []
+
+    def preflight_services(self, action: str) -> None:
+        owned = self.owned_units()
+        if action == 'uninstall' and not owned:
+            return
+        commands = ('systemctl',) if action == 'uninstall' else (
+            'systemctl', 'systemd-analyze', 'getent', DService.USERADD, DService.RUNUSER)
+        for command in commands:
+            if shutil.which(command) is None:
+                raise ValueError(self.services.text(DText.INSTALL_PREREQUISITE, setting=command))
+        reject_symlinks(self.services.unit_dir)
+        if not self.services.unit_dir.is_dir():
+            raise ValueError(self.services.text(DText.INSTALL_UNIT_DIRECTORY, path=self.services.unit_dir))
+        for name in DService.START_ORDER:
+            target = self.services.unit_dir / name
+            reject_symlinks(target)
+            if target.exists() and (name not in owned or not target.is_file()):
+                raise ValueError(self.services.text(DText.INSTALL_UNOWNED_UNIT, path=target))
+        if action == 'uninstall':
+            return
+        self.configuration_path = self.destination / DNetwork.CONFIG_FILE
+        reject_symlinks(self.configuration_path)
+        self.configuration = Configuration(self.configuration_path)
+        Llama(self.configuration).validate_files()
+        self.runtime_python = (self.destination / VENV_DIR / 'bin/python'
+                               if REQUIREMENTS_FILE is not None else Path(SYSTEM_PYTHON))
+        self.units = self.services.render(self.checkout, self.destination,
+                                          self.runtime_python, self.configuration_path)
+
+    def verify_runtime(self) -> None:
+        self.run([str(self.runtime_python), '-B', '-c',
+                  'from importlib import import_module; from sys import argv; '
+                  '[import_module(name) for name in argv[1:]]',
+                  'llamasrv.server.LlamaSrvServer', 'llamasrv.activity.RunLlama'],
+                 check=True, cwd=self.destination, env=self.python_environment(),
+                 capture_output=True, text=True, timeout=DService.COMMAND_TIMEOUT)
+        # Root's file access is insufficient evidence for the service account.
+        self.run([DService.RUNUSER, '-u', DService.ACCOUNT, '--', str(self.runtime_python),
+                  '-B', '-m', 'llamasrv.activity.RunLlama', '--config',
+                  str(self.configuration_path), '--check'],
+                 check=True, cwd=self.destination, env=self.python_environment(),
+                 capture_output=True, text=True, timeout=DService.COMMAND_TIMEOUT)
+
     def apply(self, action: str, *, check: bool = False) -> None:
         previous, names = self.plan(action)
         if check:
@@ -240,6 +311,7 @@ class Installation:
             return
         if action == 'uninstall':
             if previous is not None:
+                self.services.uninstall(self.owned_units())
                 self.remove_files(previous)
                 venv = self.destination / VENV_DIR
                 reject_symlinks(venv)
@@ -250,32 +322,41 @@ class Installation:
                 try:
                     self.destination.rmdir()
                 except OSError:
-                    # Remember that retained state belongs to this project so
-                    # repeated removal or reinstallation can recognize it.
                     removed = {'project': PROJECT_NAME, 'files': [], 'removed': True}
-                    self.atomic_write(self.destination / MANIFEST, (json.dumps(removed, indent=2) + '\n').encode())
-            print(f"Removed managed {PROJECT_NAME} files; unowned files and persistent data are retained.")
+                    self.atomic_write(self.destination / MANIFEST,
+                                      (json.dumps(removed, indent=2) + '\n').encode())
+            print(f"Removed managed {PROJECT_NAME} services and files; configuration and data retained.")
             return
+        # Validate unit syntax before stopping an existing installation.
+        self.services.verify(self.units)
+        self.services.ensure_account()
+        self.services.stop(self.owned_units())
         self.destination.mkdir(parents=True, exist_ok=True)
         self.destination.chmod(0o755)
-        # Keep ownership information for partial copies so a retry or uninstall can
-        # account for new files. Advance the successful-version marker only last.
-        owned = sorted(set(previous or ()) | set(names))
-        previous_venv = self.venv_owned() if previous is not None else False
-        ownership = {'project': PROJECT_NAME, 'files': owned,
-                     'venv_owned': REQUIREMENTS_FILE is not None or previous_venv}
-        self.atomic_write(self.destination / MANIFEST, (json.dumps(ownership, indent=2) + '\n').encode())
-        # Existing managed files may change before success; this is not rollback.
-        for name in [item for item in names if item != self.version_file]:
+        ownership = {'project': PROJECT_NAME, 'files': sorted(set(previous or ()) | set(names)),
+                     'venv_owned': REQUIREMENTS_FILE is not None or self.venv_owned(),
+                     SERVICE_UNITS: list(DService.START_ORDER)}
+        self.atomic_write(self.destination / MANIFEST,
+                          (json.dumps(ownership, indent=2) + '\n').encode())
+        for name in names:
             source = self.checkout / name
             mode = 0o755 if source.stat().st_mode & 0o111 else 0o644
             self.atomic_write(self.destination / name, source.read_bytes(), mode)
+        if not self.configuration_path.exists():
+            self.atomic_write(self.configuration_path,
+                              (json.dumps(self.configuration.as_dict(), indent=2) + '\n').encode())
         self.prepare_python()
+        self.verify_runtime()
         self.remove_files(sorted(set(previous or ()) - set(names)))
-        self.atomic_write(self.destination / self.version_file, (self.checkout / self.version_file).read_bytes())
+        self.services.install(self.units)
+        self.services.start()
+        self.services.wait_ready(self.configuration)
         ownership['files'] = names
-        self.atomic_write(self.destination / MANIFEST, (json.dumps(ownership, indent=2) + '\n').encode())
-        self.atomic_write(self.destination / VERSION_MARKER, (self.metadata['VERSION'] + '\n').encode())
+        self.atomic_write(self.destination / MANIFEST,
+                          (json.dumps(ownership, indent=2) + '\n').encode())
+        # Advance the authoritative version only after both services are ready.
+        self.atomic_write(self.destination / VERSION_MARKER,
+                          (self.metadata['VERSION'] + '\n').encode())
         print(f"{action}: {PROJECT_NAME} {self.metadata['VERSION']} deployed to {self.destination}.")
 
 
@@ -289,7 +370,8 @@ def main() -> int:
     try:
         Installation(Path(__file__).resolve().parents[1]).apply(args.action, check=args.check)
     except (OSError, ValueError, TypeError, SyntaxError, subprocess.SubprocessError) as error:
-        parser.exit(1, f"Deployment failed: {error}\n")
+        detail = getattr(error, 'stderr', None) or str(error)
+        parser.exit(1, f"Deployment failed: {detail}\n")
     return 0
 
 

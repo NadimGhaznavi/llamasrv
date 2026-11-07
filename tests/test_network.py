@@ -91,7 +91,8 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(localizer.select(accept_language="fr, en;q=0.8"), "en")
         for key in DText:
             localizer.text(key, path="example", setting="network.http", error="failure",
-                           host="0.0.0.0", port=51000)
+                           host="0.0.0.0", port=51000, seconds=120,
+                           llm_unit="llamasrv-llm.service", http_unit="llamasrv-http.service")
 
 
 if __name__ == "__main__":

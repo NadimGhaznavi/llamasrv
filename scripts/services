@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Run the installed code, even when invoked from a development checkout.
+set -euo pipefail
+cd /opt/prod/llamasrv
+exec /usr/bin/python3 -B -m llamasrv.activity.ManageServices "$@"

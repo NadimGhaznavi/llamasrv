@@ -16,7 +16,7 @@ import tempfile
 from threading import Thread
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, Mock, patch
 
 from llamasrv.constants.DHTTP import DHTTP
 from llamasrv.constants.DLlamaSrv import DLlamaSrv
@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class HTTPTests(unittest.TestCase):
     def setUp(self):
-        self.server = LlamaSrvServer(("127.0.0.1", 0))
+        self.server = LlamaSrvServer(("127.0.0.1", 0), llama=Mock(health=Mock(return_value=True)))
         self.worker = Thread(target=self.server.serve_forever,
                              kwargs={"poll_interval": 0.01})
         self.worker.start()
@@ -66,7 +66,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(self.request("GET", "/")[2]), {
             "application": "LlamaSrv", "version": DLlamaSrv.VERSION, "health": "/health"})
         self.assertEqual(json.loads(self.request("GET", "/health")[2]), {
-            "status": "ok", "components": {"http": "ok"}})
+            "status": "ok", "components": {"http": "ok", "llm": "ok"}})
 
     def test_health_failure_and_recovery(self):
         failed = {"status": "error", "components": {"http": "error"}}
@@ -74,6 +74,15 @@ class HTTPTests(unittest.TestCase):
             status, _, body = self.request("GET", "/health")
             self.assertEqual(status, 503)
             self.assertEqual(json.loads(body), failed)
+        self.assertEqual(self.request("GET", "/health")[0], 200)
+
+    def test_inference_failure_is_reported_and_recovers(self):
+        self.server.llama.health.return_value = False
+        status, _, body = self.request("GET", "/health")
+        self.assertEqual(status, 503)
+        self.assertEqual(json.loads(body), {
+            "status": "error", "components": {"http": "ok", "llm": "error"}})
+        self.server.llama.health.return_value = True
         self.assertEqual(self.request("GET", "/health")[0], 200)
 
     def test_unknown_paths_cannot_read_files(self):
@@ -150,16 +159,16 @@ class StartupTests(unittest.TestCase):
                 server.serve_forever.side_effect = KeyboardInterrupt
                 with redirect_stdout(io.StringIO()) as output:
                     self.assertEqual(main(["--config", str(Path(directory) / "missing.json")]), 0)
-                factory.assert_called_once_with(("0.0.0.0", 51000))
+                factory.assert_called_once_with(("0.0.0.0", 51000), llama=ANY)
                 self.assertIn("http://0.0.0.0:51000/", output.getvalue())
         self.assertEqual(signal.getsignal(signal.SIGTERM), previous)
 
     def test_wildcard_socket_is_bound_to_all_ipv4_interfaces(self):
-        with LlamaSrvServer(("0.0.0.0", 0)) as server:
+        with LlamaSrvServer(("0.0.0.0", 0), llama=Mock(health=Mock(return_value=False))) as server:
             self.assertEqual(server.socket.getsockname()[0], "0.0.0.0")
             self.assertGreater(server.server_port, 0)
         self.assertEqual(server.health(), {
-            "status": "error", "components": {"http": "error"}})
+            "status": "error", "components": {"http": "error", "llm": "error"}})
 
     def test_invalid_cli_or_configuration_exits_before_binding(self):
         cases = (["--port", "0"], ["--port", "65536"], ["--port", "text"],
@@ -205,8 +214,8 @@ class StartupTests(unittest.TestCase):
                             try:
                                 connection.request("GET", "/health")
                                 response = connection.getresponse()
-                                self.assertEqual(response.status, 200)
-                                self.assertEqual(json.loads(response.read())["status"], "ok")
+                                self.assertEqual(response.status, 503)
+                                self.assertEqual(json.loads(response.read())["components"]["llm"], "error")
                             finally:
                                 connection.close()
                             with socket.create_connection(("127.0.0.1", port), timeout=2) as idle:

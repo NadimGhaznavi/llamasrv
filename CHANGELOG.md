@@ -18,12 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Summary
 
-Establish the BMForge application and documentation scaffolds for LlamaSrv,
-with an HTTP server listening on all IPv4 interfaces at port 51000, on-demand
-health checks, and prepared release and installation tooling.
+Run a configurable standalone llama-server on port 51001 alongside LlamaSrv's
+HTTP service on port 51000. Defaults match ax3l's Qwen3.5-4B vision setup;
+operator-owned runtime settings survive installation and upgrades.
 
 ### Added
 
+- Shared, validated runtime configuration for both listeners and the selected
+  GGUF model, optional vision projector, context size, metrics and Jinja flags.
+- llama-server launcher with fatal checks for missing or unusable external
+  binaries and model files, and on-demand inference readiness in `/health`.
+- Separate hardened systemd units, sequential service controls, and completed
+  install/reinstall/upgrade/uninstall operations with configuration preservation,
+  deployed-code checks and readiness-gated successful-version bookkeeping.
+- GPU-free process/lifecycle tests and operator documentation for development
+  on sally and manual installation on wintermute; Git and release operations
+  remain operator-controlled.
 - Standard-library threaded HTTP server started with `python3 -m llamasrv`,
   defaulting to `0.0.0.0:51000` from CMDB metadata, with JSON service information,
   `/health`, HEAD support, local-time request logs, bounded request timeouts,
@@ -43,8 +53,8 @@ health checks, and prepared release and installation tooling.
 - Project engineering instructions and canonical `LlamaSrv` metadata, with
   initial version `0.0.0`, subtype `Application`, and base directory
   `/opt/prod/llamasrv`.
-- Standard BMForge release script, CMDB checker, and deployment-disabled
-  install, upgrade, and uninstall templates.
+- Standard BMForge release script, CMDB checker, and install, upgrade, and
+  uninstall entry points.
 - Development guide covering the scaffold, verification, and remaining
   application implementation work.
 

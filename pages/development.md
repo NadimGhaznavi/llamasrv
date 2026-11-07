@@ -6,163 +6,132 @@ language_name: English
 translation_key: llamasrv-development
 ---
 
-The canonical Python application name is `LlamaSrv`, its package is `llamasrv`,
-and its CMDB subtype is `Application`. The repository contains the application
-scaffold, documentation, and a standard-library HTTP server. llama-server service
-management and the browser interface remain future implementation work.
+Develop on sally using Python 3.11 or newer. Sally has no GPU or inference
+software stack. Wintermute supplies the GPU, llama.cpp and model artifacts;
+production inspection is read-only. Git operations, releases and production
+installation are performed by the operator.
 
-## Scaffold
+## Application structure
 
-| Location | Purpose |
+| Location | Responsibility |
 | --- | --- |
-| `AGENTS.md` | Project engineering instructions and authorization boundaries |
-| `.agents/skills/` | Project-local BMForge contracts, templates, and references |
-| `.agents/bmforge/lock.json` | Pinned revisions and integrity hashes |
-| `llamasrv/constants/DLlamaSrv.py` | Literal version, CMDB identity, and installation base directory |
-| `llamasrv/server/` | Threaded HTTP listener, JSON routes, and CLI startup |
-| `llamasrv/interface/Network.py` | Validated listener defaults and configuration overrides |
-| `llamasrv/interface/Localizer.py`, `llamasrv/locales/en.json` | English source catalogue and locale selection |
-| `tests/` | HTTP, lifecycle, and configuration acceptance checks |
-| `scripts/check-cmdb.py` | Read-only validation of the application metadata |
-| `scripts/new-release.sh` | Standard BMForge release publication workflow |
-| `scripts/install.py` | Shared installation lifecycle template |
-| `scripts/install.sh`, `scripts/upgrade.sh`, `scripts/uninstall.sh` | Executable lifecycle entry points |
+| `llamasrv/constants/DLlamaSrv.py` | Identity, literal version, CMDB listeners and owned configuration directory |
+| `llamasrv/constants/DLlama.py`, `DQwen.py`, `DService.py` | Launch settings, model defaults and service resource names |
+| `llamasrv/interface/Configuration.py` | Shared JSON/default resolution and validation |
+| `llamasrv/interface/Network.py` | Listener bindings and local client destinations |
+| `llamasrv/interface/Llama.py` | External-file checks, command arguments, process replacement and readiness |
+| `llamasrv/interface/Services.py` | Application-owned systemd operations and installation readiness |
+| `llamasrv/activity/RunLlama.py` | Launcher CLI orchestration |
+| `llamasrv/activity/ManageServices.py` | Sequential start/stop commands |
+| `llamasrv/server/` | Threaded HTTP listener, service information and aggregate `/health` |
+| `llamasrv/interface/Localizer.py`, `llamasrv/locales/en.json` | Pinned localizer and English source catalogue |
+| `systemd/` | Separate HTTP and inference unit templates |
+| `scripts/install.py` | Shared install/reinstall/upgrade/uninstall lifecycle |
+| `scripts/services` | Installed-service control entry point |
+| `tests/` | Configuration, HTTP, process, failure and lifecycle checks |
 
-The initial version is `0.0.0`, with codename `Initial development` and
-installation base directory `/opt/prod/llamasrv`. The declared HTTP listener is
-`0.0.0.0:51000`; persistent components and databases are not yet used.
+Default bindings are `0.0.0.0:51000` for HTTP and `0.0.0.0:51001` for inference.
+The application owns `/opt/prod/llamasrv`; external llama.cpp and model storage
+remain prerequisites. See [installation and runtime configuration]({{ site.baseurl }}{% link pages/installation.md %})
+for settings and target-machine operation.
 
-The baseline is pinned from BMForge revision
+## Pinned engineering contracts
+
+The baseline remains pinned at BMForge revision
 `29a100c39997349ecfd40e190319aeb5018ffab8`:
 
-| Skill | Specification | Purpose |
-| --- | --- | --- |
-| `bmforge-project` | `0.1.0` | Engineering, architecture, and changelog discipline |
-| `bmforge-constants` | `0.1.0` | Typed identifiers and application metadata |
-| `bmforge-localization` | `0.1.0` | English message catalogues and request-local language selection |
-| `bmforge-installation` | `0.1.3` | Owned install, upgrade, and uninstall lifecycle |
-| `bmforge-http` | `0.5.1` | Application HTTP UI/API and health endpoint |
-| `bmforge-github-pages` | `0.1.0` | Static project documentation |
+| Skill | Specification |
+| --- | --- |
+| `bmforge-project` | `0.1.0` |
+| `bmforge-constants` | `0.1.0` |
+| `bmforge-localization` | `0.1.0` |
+| `bmforge-installation` | `0.1.3` |
+| `bmforge-http` | `0.5.1` |
+| `bmforge-github-pages` | `0.1.0` |
 
-These skills provide instructions and application-owned reference templates.
-The application has no runtime dependency on BMForge.
-
-## Verify the scaffold
-
-Use Python 3.11 or newer for application development. The scaffold checks need
-only Python's standard library, Bash, and Git. From the repository root:
+These are project-owned instruction snapshots, not runtime imports. Read
+`AGENTS.md` and the selected specifications before editing. Updates require
+explicit authorization. Run the offline update check before BMForge-derived
+edits, or use local verification when Git commands are prohibited:
 
 ```sh
-python3 .agents/bmforge/manage.py check --project .
-python3 -B scripts/check-cmdb.py llamasrv/constants/DLlamaSrv.py --name LlamaSrv
-python3 -B -m unittest discover -s tests -v
-bash -n scripts/new-release.sh scripts/install.sh scripts/upgrade.sh scripts/uninstall.sh
-scripts/new-release.sh --help
-scripts/install.sh --help
-scripts/upgrade.sh --help
-scripts/uninstall.sh --help
+python3 -B .agents/bmforge/manage.py check --project .
+python3 -B .agents/bmforge/manage.py verify --project .
 ```
 
-The BMForge check compares installed hashes against the clean local cache and
-does not fetch or upgrade skills. `verify --project .` verifies local integrity
-without Git or an upstream comparison.
+The check compares a clean local cache without fetching or updating anything.
+Verification checks local hashes without Git or an upstream comparison.
 
-## Run the HTTP server
+## Verify locally
 
-From the repository root, run:
+The suite uses only the Python standard library, Bash and `systemd-analyze`.
+It needs local loopback socket access and the normal Linux account-tool
+executables for prerequisite discovery. It never invokes account tools or the
+real systemctl during installation tests.
+
+```sh
+python3 -B scripts/check-cmdb.py llamasrv/constants/DLlamaSrv.py --name LlamaSrv
+python3 -B -m unittest discover -s tests -v
+bash -n scripts/install.sh scripts/upgrade.sh scripts/uninstall.sh scripts/services
+./scripts/install.sh --help
+./scripts/upgrade.sh --help
+./scripts/uninstall.sh --help
+```
+
+Installation tests use disposable directories, simulated systemd/account
+operations and real installed Python processes. A small CPU-only HTTP fixture
+stands in for llama-server; no model is downloaded and no GPU libraries are
+required. Coverage includes missing prerequisites, JSON validation, argument
+boundaries, health failure/recovery, signals, preserved configuration, repeated
+installation/removal, deployment without the checkout, and version markers after
+failed activation. These tests do not validate GPU inference or real systemd
+activation on wintermute.
+
+## Run individual processes
+
+Start HTTP from the checkout:
 
 ```sh
 python3 -B -m llamasrv
 ```
 
-The default listener is `0.0.0.0:51000`, covering all IPv4 interfaces. Use a
-server IP address to connect remotely. For a local check:
+It binds to port 51000, serves service information at `/`, and reports HTTP 503
+from `/health` when no configured LLM is ready. Requests have a bounded read
+timeout; SIGTERM and Ctrl+C stop the listener and join request workers.
+
+For explicit development settings, use `--config PATH`; HTTP also accepts
+`--host` and `--port` invocation overrides. A missing config uses constants
+without creating a file. Both services validate the entire configuration at
+startup, then retain that resolved view until restarted.
+
+On a machine with the required external artifacts, validate or launch inference:
 
 ```sh
-curl http://127.0.0.1:51000/
-curl http://127.0.0.1:51000/health
+python3 -B -m llamasrv.activity.RunLlama --config /path/to/llamasrv.json --check
+python3 -B -m llamasrv.activity.RunLlama --config /path/to/llamasrv.json
 ```
 
-`GET /` returns the application name, version, and health URL. `GET /health`
-returns `{"status":"ok","components":{"http":"ok"}}` while the HTTP
-component is usable, or HTTP 503 with the failed component identified. HTTP is
-currently the only component; this does not check an unimplemented llama-server
-service. Both routes support `HEAD`. Unknown routes return 404 and mutation
-methods on known routes return 405. No browser UI or additional Python package
-is needed for this stage.
+The launcher replaces itself with llama-server, preserving its PID and native
+signal handling under systemd. Human-facing CLI messages use `DText` keys and
+the English catalogue. No additional translations or browser settings UI have
+been added.
 
-Ctrl+C and SIGTERM stop the listener and join request workers. Request sockets
-have a five-second timeout so idle clients cannot hold shutdown indefinitely.
-A failed bind exits with an error before reporting that the listener is ready.
+## Continue development
 
-### Listener configuration
+Keep orchestration in `activity/`, external bridges in `interface/`, data in
+`entity/` when needed, transport in `server/`, and stable identifiers in
+`constants/`. The future browser settings UI should reuse the configuration
+validator, English catalogue and installed-service lifecycle. The pinned HTTP
+contract specifies Jinja2 for HTML; the present JSON API needs no third-party
+packages.
 
-The single source of listener defaults is `DLlamaSrv.CMDB_NETWORK`. Startup
-reads optional overrides from `/opt/prod/llamasrv/conf/llamasrv.json`, regardless
-of the caller's working directory. For example:
-
-```json
-{
-  "network": {
-    "http": {
-      "interface": "0.0.0.0",
-      "port": 51000
-    }
-  }
-}
-```
-
-The root and `network` values must be JSON objects. The only supported role is
-`http`, with optional `interface` (numeric IPv4 string) and `port` (integer from
-1 to 65535). A missing file or omitted settings use CMDB defaults. Explicit
-values remain deployment choices even if a later release changes defaults.
-Malformed JSON, unknown keys, incorrect types, and unreadable files fail startup.
-
-`--host` and `--port` override the validated configuration for one invocation.
-`--config PATH` selects another JSON file for development or testing:
-
-```sh
-python3 -B -m llamasrv --config /tmp/llamasrv.json --host 0.0.0.0 --port 51000
-```
-
-Configuration is resolved once at startup; restart the process after edits.
-The JSON describes persistent deployment choices, while CLI overrides apply
-only to the running invocation. `Network.destination("http")` maps wildcard
-bindings to `127.0.0.1` for local clients. CLI messages use stable localization
-keys and the bundled English catalogue; `--locale` selects a published locale,
-falling back to English. No translations are currently published.
-
-## Continue application development
-
-Read the pinned project skill and each selected component's specification.
-Put use-case orchestration in `activity/`, external-system bridges in
-`interface/`, and domain values in `entity/` as implementations require them.
-Keep HTTP transport in `server/` and stable identifiers in `constants/`.
-Create packages when they have a responsibility to implement.
-
-When implementing the UI, extend the English catalogue with its actual message
-keys. The HTTP component uses Python's
-standard-library server, Jinja2 for HTML, and application-owned CSS and browser
-JavaScript. The existing HTTP API and CLI require only the Python standard
-library. Add required component probes to the existing health endpoint as
-dependencies are implemented.
-
-Complete the llama-server service lifecycle, configuration preservation,
-startup verification, and all three installation operations before enabling
-`DEPLOYMENT_READY` in `scripts/install.py`. The initial value is `False`;
-each lifecycle script's `--check` deliberately fails with
-`Deployment is not configured` until that work is complete.
-
-## Release preparation
-
-Update the single `Unreleased` changelog section and its summary for every
-completed change. Use the existing `main`, `dev`, and `feat/maint-0.1.0`
-branches; the repository retains its attached BMForge mode. Running `init` or
-`setup-branches` here would conflict with the existing setup.
-
-The release script is prepared for `LlamaSrv` and the `origin`, `dev`, and
-`main` workflow. Read the pinned project's release guides before use. Commits,
-release publication, and production deployment require separate authorization.
+Every logical change updates the single `Unreleased` changelog and its Summary.
+The literal application version remains `0.0.0` until the operator executes the
+release process. Preserve the existing `main`, `dev` and `feat/maint-0.1.0`
+branches and attached BMForge mode. Do not run bootstrap branch setup, Git
+mutations, release tooling or production deployment without separate explicit
+authorization. The lifecycle implementation is enabled, but it does not perform
+Git operations or create a release.
 
 ---
 

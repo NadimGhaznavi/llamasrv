@@ -11,6 +11,8 @@ from llamasrv.constants.DLlamaSrv import DLlamaSrv
 from llamasrv.constants.DNetwork import DNetwork
 from llamasrv.constants.DText import DText
 from llamasrv.interface.Localizer import Localizer
+from llamasrv.interface.Configuration import Configuration
+from llamasrv.interface.Llama import Llama
 from llamasrv.interface.Network import Network
 from llamasrv.server.LlamaSrvHandler import LlamaSrvHandler
 
@@ -23,14 +25,16 @@ class LlamaSrvServer(ThreadingHTTPServer):
     daemon_threads = False
     block_on_close = True
 
-    def __init__(self, address: tuple[str, int]):
+    def __init__(self, address: tuple[str, int], *, llama: Llama | None = None):
+        self.llama = llama if llama is not None else Llama(Configuration())
         super().__init__(address, LlamaSrvHandler)
 
     def health(self) -> dict:
-        # HTTP is currently the only component. Add probes through existing
-        # component interfaces when llama-server or other dependencies exist.
         state = HealthStatus.OK if self.fileno() >= 0 else HealthStatus.ERROR
-        return {DHTTP.STATUS: state, DHTTP.COMPONENTS: {DNetwork.HTTP: state}}
+        inference = HealthStatus.OK if self.llama.health() else HealthStatus.ERROR
+        healthy = state == HealthStatus.OK and inference == HealthStatus.OK
+        return {DHTTP.STATUS: HealthStatus.OK if healthy else HealthStatus.ERROR,
+                DHTTP.COMPONENTS: {DNetwork.HTTP: state, DNetwork.LLM: inference}}
 
 
 def main(argv=None) -> int:
@@ -51,7 +55,8 @@ def main(argv=None) -> int:
     parser.add_argument("--locale", help=text(DText.CLI_LOCALE))
     args = parser.parse_args(argv)
     try:
-        network = Network(args.config, localizer=localizer, locale=locale)
+        configuration = Configuration(args.config, localizer=localizer, locale=locale)
+        network = Network(configuration)
         address = network.binding(DNetwork.HTTP, host=args.host, port=args.port)
     except ValueError as error:
         parser.error(str(error))
@@ -61,7 +66,7 @@ def main(argv=None) -> int:
 
     previous = signal.signal(signal.SIGTERM, stop)
     try:
-        with LlamaSrvServer(address) as server:
+        with LlamaSrvServer(address, llama=Llama(configuration)) as server:
             print(text(DText.SERVER_READY, host=server.server_address[0],
                        port=server.server_port), flush=True)
             server.serve_forever(poll_interval=DHTTP.POLL_INTERVAL)
