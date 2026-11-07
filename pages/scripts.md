@@ -1,5 +1,5 @@
 ---
-title: "Installation and runtime configuration"
+title: "Install, Upgrade, Uninstall"
 lang: en
 locale: en-US
 language_name: English

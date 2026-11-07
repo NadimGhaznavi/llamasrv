@@ -1,5 +1,5 @@
 ---
-title: "Development setup"
+title: "Project Structure"
 lang: en
 locale: en-US
 language_name: English
