@@ -42,6 +42,7 @@ exclude:
   - AGENTS.md
   - README.md
   - LICENSE
+  - llamasrv
   - scripts
   - tests
   - templates
