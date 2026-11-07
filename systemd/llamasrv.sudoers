@@ -1,0 +1,2 @@
+# Managed by LlamaSrv. Only these exact service operations are permitted.
+llamasrv ALL=(root) NOPASSWD: /usr/bin/systemctl stop llamasrv-http.service, /usr/bin/systemctl start llamasrv-http.service, /usr/bin/systemctl stop llamasrv-llm.service, /usr/bin/systemctl start llamasrv-llm.service

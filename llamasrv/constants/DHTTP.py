@@ -7,6 +7,20 @@ from typing import Final
 class DHTTP:
     ROOT: Final[str] = "/"
     HEALTH: Final[str] = "/health"
+    INFO: Final[str] = "/api"
+    CONFIGURATION: Final[str] = "/api/configuration"
+    RESTART: Final[str] = "/api/restart"
+    LIVE_STATUS: Final[str] = "/api/status"
+    STATIC: Final[str] = "/static/"
+    STATIC_FILES: Final[dict[str, str]] = {
+        "style.css": "text/css; charset=utf-8",
+        "ui.js": "text/javascript; charset=utf-8",
+        "logo.png": "image/png",
+    }
+    MAX_BODY: Final[int] = 16384
+    REQUEST_HEADER: Final[str] = "X-LlamaSrv-Request"
+    REQUEST_MARKER: Final[str] = "control-panel"
+    LANG: Final[str] = "lang"
     REQUEST_TIMEOUT: Final[float] = 5.0
     POLL_INTERVAL: Final[float] = 0.2
     HEAD: Final[str] = "HEAD"

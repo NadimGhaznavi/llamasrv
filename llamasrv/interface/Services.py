@@ -18,9 +18,11 @@ from llamasrv.interface.Network import Network
 
 class Services:
     def __init__(self, *, run=None, unit_dir: Path | None = None,
+                 sudoers_dir: Path | None = None,
                  startup_timeout: float = DService.STARTUP_TIMEOUT):
         self.run = run if run is not None else subprocess.run
         self.unit_dir = Path(unit_dir if unit_dir is not None else DService.UNIT_DIR)
+        self.sudoers_dir = Path(sudoers_dir if sudoers_dir is not None else DService.SUDOERS_DIR)
         self.startup_timeout = startup_timeout
         self.localizer = Localizer(Path(__file__).resolve().parents[1] / DLlamaSrv.LOCALES_DIR)
 
@@ -37,6 +39,7 @@ class Services:
         values = {"APP": str(application).replace("%", "%%"),
                   "USER": DService.ACCOUNT,
                   "PYTHON": json.dumps(str(python), ensure_ascii=False).replace("%", "%%"),
+                  "CONF_DIR": json.dumps(str(configuration.parent), ensure_ascii=False).replace("%", "%%"),
                   "CONFIG": json.dumps(str(configuration), ensure_ascii=False).replace("%", "%%")}
         units = {}
         for name in DService.START_ORDER:
@@ -77,6 +80,36 @@ class Services:
     def start(self) -> None:
         for name in DService.START_ORDER:
             self.command("systemctl", "start", name)
+
+    def restart_llm(self) -> None:
+        """Use the exact passwordless commands granted by our installed sudoers file."""
+        try:
+            for action in ("stop", "start"):
+                self.command(DService.SUDO, "-n", DService.SYSTEMCTL, action, DService.LLM)
+        except subprocess.SubprocessError as error:
+            raise RuntimeError(self.text(DText.UI_OPERATION_FAILED)) from error
+
+    def sudoers(self, checkout: Path | None = None) -> str:
+        root = checkout if checkout is not None else Path(__file__).resolve().parents[2]
+        return (root / DService.SUDOERS_SOURCE).read_text(encoding="utf-8")
+
+    def verify_sudoers(self, checkout: Path | None = None) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", prefix="llamasrv-sudoers-") as stream:
+            stream.write(self.sudoers(checkout))
+            stream.flush()
+            self.command(DService.VISUDO, "-cf", stream.name)
+
+    def install_sudoers(self, checkout: Path | None = None) -> None:
+        with tempfile.NamedTemporaryFile(dir=self.sudoers_dir, prefix=".llamasrv-",
+                                         delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write(self.sudoers(checkout).encode("utf-8"))
+                stream.flush()
+                temporary.chmod(0o440)
+                temporary.replace(self.sudoers_dir / DService.SUDOERS_FILE)
+            finally:
+                temporary.unlink(missing_ok=True)
 
     def stop(self, units: tuple[str, ...] | list[str] = DService.START_ORDER) -> None:
         for name in reversed(DService.START_ORDER):

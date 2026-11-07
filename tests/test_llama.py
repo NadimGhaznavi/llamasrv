@@ -57,6 +57,7 @@ class LlamaTests(unittest.TestCase):
         self.assertNotIn('--mmproj', command)
         self.assertNotIn('--metrics', command)
         self.assertNotIn('--jinja', command)
+        self.assertIn('--no-jinja', command)
         self.assertIn('4096', command)
 
     def test_configuration_rejects_unknown_fields_and_wrong_types(self):
@@ -118,6 +119,8 @@ class LlamaTests(unittest.TestCase):
         env = dict(os.environ, LLAMASRV_TEST_HEALTH=str(state), LLAMASRV_TEST_ARGUMENTS=str(arguments))
         for stop_signal in (signal.SIGTERM, signal.SIGINT):
             with self.subTest(signal=stop_signal):
+                self.values['llama']['jinja'] = stop_signal == signal.SIGTERM
+                self.llama()
                 with subprocess.Popen([
                     sys.executable, '-B', '-m', 'llamasrv.activity.RunLlama',
                     '--config', str(self.path)], cwd=ROOT, env=env,
@@ -127,6 +130,7 @@ class LlamaTests(unittest.TestCase):
                         actual = json.loads(arguments.read_text())
                         self.assertEqual(actual['model'], str(self.llama().files()[1]))
                         self.assertEqual(actual['c'], 12288)
+                        self.assertEqual(actual['jinja'], self.values['llama']['jinja'])
                         self.assertTrue(self.llama().health())
                         state.write_text('loading model')
                         self.assertFalse(self.llama().health())

@@ -12,10 +12,11 @@ Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=@PYTHON@ -B -m llamasrv --config @CONFIG@
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=true
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ReadWritePaths=@CONF_DIR@
 
 [Install]
 WantedBy=multi-user.target
