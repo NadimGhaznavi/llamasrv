@@ -3,11 +3,11 @@ from typing import Final
 
 class DLlamaSrv:
     NAME: Final[str] = "LlamaSrv"
-    VERSION: Final[str] = "0.2.4"
+    VERSION: Final[str] = "0.2.5"
     CMDB_TYPE: Final[str] = "application"
     CMDB_SUBTYPE: Final[str] = "Application"
     CMDB_SUPPLIER: Final[str] = "Nadim-Daniel"
-    CMDB_CODENAME: Final[str] = "Heqet"
+    CMDB_CODENAME: Final[str] = "Hesat"
     CMDB_COMPONENTS = (("configuration", "conf"),)
     CMDB_DATABASES = ()
     # Declare every owned listener; runtime defaults must use these bindings.

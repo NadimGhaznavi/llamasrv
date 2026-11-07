@@ -1,5 +1,5 @@
 ---
-title: "llamasrv"
+title: "LLamaSrv - Your Models. Your Machine."
 layout: single
 classes: wide
 author_profile: true
