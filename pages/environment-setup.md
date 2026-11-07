@@ -6,116 +6,166 @@ language_name: English
 translation_key: llamasrv-environment
 ---
 
-Before installing LlamaSrv, prepare a Linux host with **llama.cpp**, a model, and (optionally) NVIDIA GPU acceleration. The example below uses Debian 13, a Quadro M4000, and Qwen3.5-4B. Other hardware and models may need different packages or build options.
+This is a complete example of preparing a **Debian 13** host to run LlamaSrv with **llama.cpp and Qwen3.5-4B**. It is based on the Ax3l deployment, which used an NVIDIA Quadro M4000 and CUDA 12.4. Use compatible versions for your own hardware.
 
-## Linux and NVIDIA drivers
+**LlamaSrv does not install drivers, compile llama.cpp, or download models.** Its first installation expects a working `llama-server` binary and the default Qwen model files at the paths below. Once installed, you can select a different model in the control panel.
 
-Install the basic build tools:
+## 1. Prepare Linux
+
+Install Git, the build tools, and Python's virtual-environment support:
 
 ```sh
 sudo apt update
 sudo apt install git git-lfs build-essential cmake libssl-dev python3-dev python3-venv
 ```
 
-For NVIDIA hardware, enable Debian's `contrib`, `non-free`, and `non-free-firmware` repository components, then install the driver and CUDA toolkit:
+For an **NVIDIA GPU**, enable the `contrib`, `non-free` and `non-free-firmware` components in your Debian APT sources (either `/etc/apt/sources.list` or the `Components:` field of `/etc/apt/sources.list.d/debian.sources`). Then install the driver and CUDA toolkit:
 
 ```sh
+sudo apt update
 sudo apt install linux-headers-amd64 nvidia-driver nvidia-cuda-dev nvidia-cuda-toolkit
 ```
 
-Reboot after installing the driver, then check:
+Reboot after installing the driver and confirm it is working:
 
 ```sh
+lspci | grep -i nvidia
 nvidia-smi
 nvcc --version
 ```
 
-For the Quadro M4000, the Ax3l setup used NVIDIA driver 550.163.01 and CUDA toolkit 12.4. Check that your driver, CUDA toolkit, and GPU architecture are compatible before building.
+The original Ax3l machine reported driver `550.163.01` and CUDA toolkit `12.4`. Older cards such as the Quadro M4000 need a compatible CUDA toolkit **and** llama.cpp version. A current release may no longer support every older GPU.
 
-## Build llama.cpp
+**CPU-only host?** Skip the NVIDIA driver and CUDA steps, and use the CPU build in the next section.
+
+## 2. Build llama.cpp
+
+Keep source code and model-conversion files in a writable workspace:
 
 ```sh
+mkdir -p "$HOME/llamasrv-work"
+cd "$HOME/llamasrv-work"
 git clone https://github.com/ggml-org/llama.cpp.git
 cd llama.cpp
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON
-cmake --build build --config Release -j "$(nproc)"
-sudo cmake --install build --prefix /opt/prod/llama.cpp
 ```
 
-For a CPU-only build, omit `-DGGML_CUDA=ON`. If the installed binary requires shared libraries from the installation prefix, register them:
+Choose **one** build:
+
+```sh
+# NVIDIA CUDA
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON
+cmake --build build -j 4
+```
+
+```sh
+# CPU only
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j 4
+```
+
+Install the binary where LlamaSrv expects it:
+
+```sh
+sudo cmake --install build --prefix /opt/prod/llama.cpp
+/opt/prod/llama.cpp/bin/llama-server --version
+```
+
+If the binary reports missing shared libraries, register the installed library path:
 
 ```sh
 echo '/opt/prod/llama.cpp/lib' | sudo tee /etc/ld.so.conf.d/llama.cpp.conf
 sudo ldconfig
 ```
 
-Confirm that `/opt/prod/llama.cpp/bin/llama-server` exists and runs. LlamaSrv expects that path by default; it does **not** build llama.cpp itself.
+For additional backends and build options, see the [llama.cpp build guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md).
 
-## Prepare Qwen3.5-4B
+## 3. Download Qwen3.5-4B
 
-The default LlamaSrv configuration uses a quantized language model and a separate F16 vision projector. The following commands reproduce the preparation described in Ax3l. Run them from a development workspace with enough disk space and memory for the conversion.
+The default model uses two GGUF files: a quantized **language model** and an **F16 vision projector**. Download the original model into the same workspace. The Ax3l download was approximately 18 GB; conversion needs substantial additional free space.
 
 ```sh
+cd "$HOME/llamasrv-work"
 git lfs install
-mkdir -p /opt/dev/models/intermediate /opt/dev/models/quantized /opt/prod/models
-cd /opt/dev
 git clone --depth 1 https://huggingface.co/Qwen/Qwen3.5-4B
+mkdir -p models/intermediate models/quantized
 ```
 
-Install the conversion requirements in a Python virtual environment:
+Create an isolated conversion environment and install the dependencies provided by llama.cpp:
 
 ```sh
-python3 -m venv /opt/dev/qwen-convert-venv
-. /opt/dev/qwen-convert-venv/bin/activate
-cd /opt/dev/llama.cpp
-pip install -r requirements.txt
+python3 -m venv "$HOME/llamasrv-work/.venv"
+"$HOME/llamasrv-work/.venv/bin/python" -m pip install \
+  -r "$HOME/llamasrv-work/llama.cpp/requirements.txt"
 ```
 
-If you cloned llama.cpp elsewhere, use that checkout instead of `/opt/dev/llama.cpp`.
+## 4. Convert and install the model
 
-Convert the language model and vision projector:
+From the llama.cpp checkout, convert the **language model** to BF16:
 
 ```sh
-python convert_hf_to_gguf.py /opt/dev/Qwen3.5-4B \
-  --outfile /opt/dev/models/intermediate/Qwen3.5-4B-BF16.gguf --outtype bf16
+cd "$HOME/llamasrv-work/llama.cpp"
+"$HOME/llamasrv-work/.venv/bin/python" convert_hf_to_gguf.py \
+  "$HOME/llamasrv-work/Qwen3.5-4B" \
+  --outfile "$HOME/llamasrv-work/models/intermediate/Qwen3.5-4B-BF16.gguf" \
+  --outtype bf16
+```
 
-python convert_hf_to_gguf.py /opt/dev/Qwen3.5-4B \
-  --mmproj \
-  --outfile /opt/dev/models/intermediate/mmproj-Qwen3.5-4B-F16.gguf \
+Export the separate **vision projector** in F16:
+
+```sh
+"$HOME/llamasrv-work/.venv/bin/python" convert_hf_to_gguf.py \
+  "$HOME/llamasrv-work/Qwen3.5-4B" --mmproj \
+  --outfile "$HOME/llamasrv-work/models/intermediate/mmproj-Qwen3.5-4B-F16.gguf" \
   --outtype f16
 ```
 
-Quantize the language model, leaving the projector in F16:
+Quantize only the language model to Q4_K_M; keep the projector in F16:
 
 ```sh
-/opt/dev/llama.cpp/build/bin/llama-quantize \
-  /opt/dev/models/intermediate/Qwen3.5-4B-BF16.gguf \
-  /opt/dev/models/quantized/Qwen3.5-4B-Q4_K_M.gguf Q4_K_M
+"$HOME/llamasrv-work/llama.cpp/build/bin/llama-quantize" \
+  "$HOME/llamasrv-work/models/intermediate/Qwen3.5-4B-BF16.gguf" \
+  "$HOME/llamasrv-work/models/quantized/Qwen3.5-4B-Q4_K_M.gguf" \
+  Q4_K_M
 ```
 
-Install the two GGUF files:
+Copy the two finished files into the default model directory:
 
 ```sh
-sudo cp /opt/dev/models/quantized/Qwen3.5-4B-Q4_K_M.gguf /opt/prod/models/
-sudo cp /opt/dev/models/intermediate/mmproj-Qwen3.5-4B-F16.gguf /opt/prod/models/
+sudo install -d -m 755 /opt/prod/models
+sudo install -m 644 \
+  "$HOME/llamasrv-work/models/quantized/Qwen3.5-4B-Q4_K_M.gguf" \
+  /opt/prod/models/
+sudo install -m 644 \
+  "$HOME/llamasrv-work/models/intermediate/mmproj-Qwen3.5-4B-F16.gguf" \
+  /opt/prod/models/
 ```
 
-Ensure the files are readable by the `llamasrv` service account. The model and projector must both be present for vision support.
-
-## Continue with LlamaSrv
-
-Now follow [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %}). The installer checks the external binary and model files, then manages the two systemd services.
-
-Once running, verify the model's capabilities:
+Check the prerequisites before proceeding:
 
 ```sh
+ls -lh /opt/prod/llama.cpp/bin/llama-server
+ls -lh /opt/prod/models/{Qwen3.5-4B-Q4_K_M,mmproj-Qwen3.5-4B-F16}.gguf
+```
+
+The model files must be readable by the `llamasrv` service account that the installer creates. A projector is needed for vision support; loading only the language-model GGUF will not enable images.
+
+## 5. Install and verify LlamaSrv
+
+Follow [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %}) to clone its repository and install the two services. LlamaSrv starts inference on port `51001` and the control panel on port `51000`.
+
+When the services are running:
+
+```sh
+curl -fsS http://127.0.0.1:51000/health
 curl -fsS http://127.0.0.1:51001/props
 ```
 
-For vision, check for `"vision": true` in the reported modalities. See [Using LlamaSrv]({{ site.baseurl }}{% link pages/usage.md %}) for configuration and client requests.
+Check the `/props` response for `"vision": true` in `modalities`. Open `http://HOST:51000/` to manage the service. Restrict access to the control panel, which has no login.
+
+The model conversion commands are an example from a particular working setup. As llama.cpp evolves, its conversion options and hardware support may change. For model/projector usage, see the [llama.cpp multimodal guide](https://github.com/ggml-org/llama.cpp/blob/master/docs/multimodal.md).
 
 ---
 
-Adapted from the [Ax3l environment setup](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/env-setup.md), [driver setup](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/driver-setup.md), [llama.cpp setup](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/llama-cpp.md), and [Qwen3.5 model setup](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/qwen-3.5-model-setup.md).
+Adapted from Ax3l's [environment](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/env-setup.md), [driver](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/driver-setup.md), [llama.cpp](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/llama-cpp.md), and [Qwen3.5](https://github.com/NadimGhaznavi/ax3l/blob/main/pages/qwen-3.5-model-setup.md) guides.
 
 [Documentation index]({{ site.baseurl }}{% link index.md %})
