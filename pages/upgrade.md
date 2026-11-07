@@ -16,7 +16,7 @@ git pull --ff-only
 sudo ./scripts/upgrade.sh
 ```
 
-The upgrade validates settings and model files, updates the installation, restarts inference and HTTP, then waits for both to become ready. It records the new version only after a successful start.
+The upgrade validates settings and model files, updates the installation, and restarts inference and HTTP without a health probe. It records the new version after deployment checks and both service start commands succeed. Inference may still be loading its model when the upgrade completes.
 
 Your `/opt/prod/llamasrv/conf/llamasrv.json`, models, and external llama.cpp installation are preserved. **There is no automatic rollback:** if an upgrade fails, review the error and logs before retrying.
 

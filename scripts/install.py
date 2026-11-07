@@ -381,11 +381,12 @@ class Installation:
         self.services.install(self.units)
         self.services.install_sudoers(self.checkout)
         self.services.start()
-        self.services.wait_ready(self.configuration)
+        if action != 'upgrade':
+            self.services.wait_ready(self.configuration)
         ownership['files'] = names
         self.atomic_write(self.destination / MANIFEST,
                           (json.dumps(ownership, indent=2) + '\n').encode())
-        # Advance the authoritative version only after both services are ready.
+        # Upgrades require successful start commands; installs also require readiness.
         self.atomic_write(self.destination / VERSION_MARKER,
                           (self.metadata['VERSION'] + '\n').encode())
         print(f"{action}: {PROJECT_NAME} {self.metadata['VERSION']} deployed to {self.destination}.")
