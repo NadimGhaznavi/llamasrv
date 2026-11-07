@@ -8,6 +8,8 @@ translation_key: llamasrv-installation
 
 LlamaSrv runs two independent systemd services: a browser control panel and a `llama-server` inference process.
 
+For a host that does not yet have llama.cpp or a model, follow the [Environment Setup guide]({{ site.baseurl }}{% link pages/environment-setup.md %}) first.
+
 ## Requirements
 
 On the Linux host where LlamaSrv will run, you need:
