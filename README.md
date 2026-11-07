@@ -13,4 +13,4 @@ sudo ./scripts/install.sh
 
 The control panel listens on port `51000`, and inference on port `51001`. By default both bind to all IPv4 interfaces; restrict control-panel access to a trusted network.
 
-[Installation and usage guides](https://llamasrv.osoyalce.com/) · [Project structure](pages/project-structure.md)
+[Environment setup](pages/environment-setup.md) · [Installation and usage guides](https://llamasrv.osoyalce.com/) · [Project structure](pages/project-structure.md)

@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Summary
+
+Upgrades no longer wait for an HTTP health response when restarting services.
+
+### Changed
+
+- Expanded the environment setup guide into a consistent Debian 13 walkthrough for supported NVIDIA or CPU hardware, including llama.cpp builds, Qwen3.5 vision conversion, and first-run checks.
+
+### Fixed
+
+- Skip the readiness health check during upgrades, including when services were
+  stopped beforehand. Install readiness checks and upgrade failure handling for
+  runtime validation and service start commands remain in place.
+
 ## [0.2.1] - 2026-11-07 @ 05:41
 
 ### Changed
