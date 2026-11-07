@@ -201,6 +201,22 @@ class InstallationTests(unittest.TestCase):
         self.assertLess(actions.index(['stop', DService.HTTP]), actions.index(['stop', DService.LLM]))
         self.assertLess(actions.index(['start', DService.LLM]), actions.index(['start', DService.HTTP]))
 
+    def test_upgrade_from_stopped_services_skips_health_check(self):
+        self.installer().apply('install')
+        self.installer().services.stop()
+        self.assertTrue(all(process.poll() is not None
+                            for process in self.system.processes.values()))
+        self.health.write_text('loading model')
+        self.next_version()
+        self.system.calls.clear()
+        with patch('llamasrv.interface.Services.probe') as health_probe:
+            self.installer().apply('upgrade')
+        health_probe.assert_not_called()
+        self.assertEqual((self.destination / VERSION_MARKER).read_text(), '0.0.1\n')
+        self.assertEqual([call[1:] for call in self.system.calls
+                          if call[:2] == ['systemctl', 'start']], [
+            ['start', DService.LLM], ['start', DService.HTTP]])
+
     def test_deployed_code_runs_without_checkout(self):
         self.installer().apply('install')
         self.system.close()

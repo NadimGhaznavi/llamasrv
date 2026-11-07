@@ -25,6 +25,7 @@ The default setup runs Qwen3.5-4B with a vision projector.
 
 ## Getting Started
 
+- [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %})
 - [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %})
 - [Using LlamaSrv]({{ site.baseurl }}{% link pages/usage.md %})
 - [Upgrade]({{ site.baseurl }}{% link pages/upgrade.md %})
@@ -35,3 +36,4 @@ The default setup runs Qwen3.5-4B with a vision projector.
 - [Project Structure]({{ site.baseurl }}{% link pages/project-structure.md %})
 - [Changelog]({{ site.baseurl }}{% link CHANGELOG.md %})
 - [Source repository](https://github.com/NadimGhaznavi/llamasrv)
+- **LlamaSrv** is from the folks at [Bear & Moose](https://www.osoyalce.com)
