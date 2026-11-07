@@ -1,22 +1,16 @@
-# llamasrv
+# LlamaSrv
 
-Standalone Linux systemd services for llama-server and its configuration HTTP
-server. Qwen3.5-4B with vision is the default model.
+LlamaSrv provides systemd-managed llama.cpp inference and a browser control panel. Qwen3.5-4B with vision is the default model.
 
-Run the HTTP server with Python 3.11 or newer:
+On a Linux host with the llama.cpp binary and model files already installed:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m llamasrv
+git clone https://github.com/NadimGhaznavi/llamasrv.git
+cd llamasrv
+./scripts/install.sh --check
+sudo ./scripts/install.sh
 ```
 
-HTTP listens on `0.0.0.0:51000`; inference listens on `0.0.0.0:51001`.
-`/health` returns 503 until inference is ready. Stop HTTP with Ctrl+C or SIGTERM.
+The control panel listens on port `51000`, and inference on port `51001`. By default both bind to all IPv4 interfaces; restrict control-panel access to a trusted network.
 
-On the target machine, run `sudo ./scripts/install.sh` from the checkout.
-See [installation and runtime configuration](pages/installation.md) for
-prerequisites, settings, upgrades and removal. Open `http://localhost:51000/`
-for configuration, inference restart and live service readiness.
-
-[Project website and documentation](https://llamasrv.osoyalce.com/)
+[Installation and usage guides](https://llamasrv.osoyalce.com/) · [Project structure](pages/project-structure.md)
