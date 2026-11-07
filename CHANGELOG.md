@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07 @ 04:52
+
 ### Summary
 
 Manage local inference through a browser control panel, with validated settings,
