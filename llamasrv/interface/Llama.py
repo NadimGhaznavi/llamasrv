@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from llamasrv.constants.DHTTP import DHTTP, HealthStatus
+from llamasrv.constants.DControl import DControl
 from llamasrv.constants.DLlama import DLlama
 from llamasrv.constants.DNetwork import DNetwork
 from llamasrv.constants.DText import DText
@@ -39,6 +40,15 @@ class Llama:
     def __init__(self, configuration: Configuration):
         self.configuration = configuration
 
+    def available_files(self) -> tuple[list[str], list[str]]:
+        directory = Path(self.configuration.llama[DLlama.MODEL_DIR])
+        artifacts = sorted(str(path.relative_to(directory))
+                           for path in directory.rglob(DControl.MODEL_PATTERN) if path.is_file())
+        projector = self.configuration.llama[DLlama.MMPROJ]
+        models = [name for name in artifacts if name != projector
+                  and not Path(name).name.lower().startswith(DControl.PROJECTOR_PREFIX)]
+        return models, artifacts
+
     def files(self) -> tuple[Path, Path, Path | None]:
         settings = self.configuration.llama
         directory = Path(settings[DLlama.MODEL_DIR])
@@ -66,10 +76,10 @@ class Llama:
             arguments.extend((DLlama.MMPROJ_OPTION, str(projector)))
         arguments.extend((DLlama.CONTEXT_OPTION, str(settings[DLlama.CONTEXT_SIZE]),
                           DLlama.HOST_OPTION, host, DLlama.PORT_OPTION, str(port)))
-        for key, option in ((DLlama.METRICS, DLlama.METRICS_OPTION),
-                            (DLlama.JINJA, DLlama.JINJA_OPTION)):
-            if settings[key]:
-                arguments.append(option)
+        if settings[DLlama.METRICS]:
+            arguments.append(DLlama.METRICS_OPTION)
+        arguments.append(DLlama.JINJA_OPTION if settings[DLlama.JINJA]
+                         else DLlama.NO_JINJA_OPTION)
         return arguments
 
     def health(self) -> bool:

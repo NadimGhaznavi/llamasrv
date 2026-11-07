@@ -51,6 +51,30 @@ class ServiceTests(unittest.TestCase):
             self.assertIn('--config "/opt/prod/app path/conf/llamasrv.json"', content)
             self.assertNotIn('@', content)
 
+    def test_restart_uses_only_exact_noninteractive_sudo_stop_then_start(self):
+        runner = Mock(return_value=subprocess.CompletedProcess([], 0, '', ''))
+        services = Services(run=runner)
+        services.restart_llm()
+        self.assertEqual([call.args[0] for call in runner.call_args_list], [
+            ['/usr/bin/sudo', '-n', '/usr/bin/systemctl', 'stop', DService.LLM],
+            ['/usr/bin/sudo', '-n', '/usr/bin/systemctl', 'start', DService.LLM]])
+        runner.reset_mock()
+        runner.side_effect = subprocess.CalledProcessError(1, ['sudo'], stderr='denied')
+        with self.assertRaises(RuntimeError):
+            services.restart_llm()
+        self.assertEqual(runner.call_count, 1)
+
+    def test_sudoers_grants_exactly_four_commands_without_wildcards(self):
+        content = Services().sudoers()
+        rules = [line for line in content.splitlines() if line and not line.startswith('#')]
+        self.assertEqual(len(rules), 1)
+        commands = rules[0].split('NOPASSWD: ', 1)[1].split(', ')
+        self.assertEqual(set(commands), {
+            f'/usr/bin/systemctl {action} {name}'
+            for name in (DService.HTTP, DService.LLM) for action in ('start', 'stop')})
+        self.assertNotIn('*', content)
+        self.assertTrue(rules[0].startswith('llamasrv ALL=(root) NOPASSWD:'))
+
 
 if __name__ == '__main__':
     unittest.main()

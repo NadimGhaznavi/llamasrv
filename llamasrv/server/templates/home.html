@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{{ app.NAME }} · {{ t(text.UI_TITLE) }}</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/ui.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand">
+      <img src="/static/logo.png" alt="{{ app.NAME }}" width="94" height="94">
+      <div><div class="brand-name">Llama<span>Srv</span></div><p>{{ t(text.UI_SUBTITLE) }}</p></div>
+    </div>
+    <div class="header-meta"><span class="version">v{{ app.VERSION }}</span><span>{{ t(text.UI_TITLE) }}</span></div>
+  </header>
+  <main>
+    {% if languages|length > 1 %}
+    <form method="get" class="language-form"><label for="language">{{ t(text.UI_LANGUAGE) }}</label>
+      <select name="lang" id="language">{% for language in languages %}<option value="{{ language }}"{% if language == locale %} selected{% endif %}>{{ language }}</option>{% endfor %}</select>
+      <button>{{ t(text.UI_UPDATE) }}</button>
+    </form>
+    {% endif %}
+    <section class="panel" aria-labelledby="configuration-heading">
+      <div class="panel-heading"><div><h1 id="configuration-heading">{{ t(text.UI_CONFIGURATION) }}</h1><p>{{ t(text.UI_CONFIGURATION_HELP) }}</p></div><span id="dirty-state" class="badge" hidden>{{ t(text.UI_UNSAVED) }}</span></div>
+      {% set settings = snapshot.settings %}
+      <form id="configuration-form">
+        <fieldset id="configuration-fields" disabled>
+          <legend>{{ t(text.UI_LISTENERS) }}</legend>
+          <div class="port-grid">
+            <label for="http_port">{{ t(text.UI_HTTP_PORT) }}<input id="http_port" name="http_port" type="number" min="1" max="65535" step="1" required value="{{ settings.http_port }}" aria-describedby="port-help"></label>
+            <label for="llm_port">{{ t(text.UI_LLM_PORT) }}<input id="llm_port" name="llm_port" type="number" min="1" max="65535" step="1" required value="{{ settings.llm_port }}"></label>
+          </div>
+          <p class="help" id="port-help">{{ t(text.UI_PORT_HELP) }}</p>
+          <div class="section-label">{{ t(text.UI_INFERENCE) }}</div>
+          <div class="setting-row"><label for="context_size">{{ t(text.UI_CONTEXT) }}</label><div class="context-input"><input id="context_size" name="context_size" type="number" min="1" step="1" required value="{{ settings.context_size }}"><span>{{ t(text.UI_TOKENS) }}</span></div></div>
+          <div class="toggle-row"><div><label for="metrics">{{ t(text.UI_METRICS) }}</label><p class="help" id="metrics-help">{{ t(text.UI_METRICS_HELP) }}</p></div><input id="metrics" name="metrics" type="checkbox" role="switch" aria-describedby="metrics-help"{% if settings.metrics %} checked{% endif %}></div>
+          <div class="toggle-row"><div><label for="jinja">{{ t(text.UI_JINJA) }}</label><p class="help" id="jinja-help">{{ t(text.UI_JINJA_HELP) }}</p></div><input id="jinja" name="jinja" type="checkbox" role="switch" aria-describedby="jinja-help"{% if settings.jinja %} checked{% endif %}></div>
+          <div class="model-settings">
+            <label for="model">{{ t(text.UI_MODEL) }}<select id="model" name="model" aria-describedby="model-help" required>
+              {% if settings.model not in snapshot.models %}<option value="{{ settings.model }}" selected>{{ settings.model }} ({{ t(text.UI_NOT_FOUND) }})</option>{% endif %}
+              {% for model in snapshot.models %}<option value="{{ model }}"{% if model == settings.model %} selected{% endif %}>{{ model }}</option>{% endfor %}
+            </select></label><p class="help" id="model-help">{{ t(text.UI_MODEL_HELP) }}</p>
+            <label for="mmproj">{{ t(text.UI_PROJECTOR) }}<select id="mmproj" name="mmproj" aria-describedby="projector-help">
+              <option value=""{% if settings.mmproj is none %} selected{% endif %}>{{ t(text.UI_NO_PROJECTOR) }}</option>
+              {% if settings.mmproj is not none and settings.mmproj not in snapshot.projectors %}<option value="{{ settings.mmproj }}" selected>{{ settings.mmproj }} ({{ t(text.UI_NOT_FOUND) }})</option>{% endif %}
+              {% for projector in snapshot.projectors %}<option value="{{ projector }}"{% if projector == settings.mmproj %} selected{% endif %}>{{ projector }}</option>{% endfor %}
+            </select></label><p class="help" id="projector-help">{{ t(text.UI_PROJECTOR_HELP) }}</p>
+          </div>
+          <div class="actions"><button type="submit" id="update" class="primary">{{ t(text.UI_UPDATE) }}<span aria-hidden="true">↗</span></button><button type="button" id="restart">{{ t(text.UI_RESTART) }}<span aria-hidden="true">↻</span></button></div>
+        </fieldset>
+        <p class="help action-help">{{ t(text.UI_RESTART_HELP) }}</p>
+        <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+        <p id="http-pending" class="notice"{% if settings.http_port == http_port %} hidden{% endif %}>{{ t(text.UI_HTTP_PENDING) }}</p>
+        <noscript><p class="notice">{{ t(text.UI_JAVASCRIPT) }}</p></noscript>
+      </form>
+    </section>
+    <section class="panel status-panel" aria-labelledby="status-heading">
+      <div class="panel-heading"><div><h2 id="status-heading">{{ t(text.UI_STATUS) }}</h2><p>{{ t(text.UI_STATUS_HELP) }}</p></div><button id="refresh" class="icon-button" aria-label="{{ t(text.UI_REFRESH) }}" title="{{ t(text.UI_REFRESH) }}" disabled>↻</button></div>
+      <div class="status-values" role="status" aria-live="polite">
+        <div class="service-row"><span class="service-label"><span class="service-icon" aria-hidden="true">◇</span>{{ t(text.UI_LLM_SERVICE) }}</span><span id="llm-state" class="state" data-state="checking">{{ t(text.UI_CHECKING) }}</span></div>
+        <div class="service-row"><span class="service-label"><span class="service-icon" aria-hidden="true">⌘</span>{{ t(text.UI_HTTP_SERVICE) }}</span><span id="http-state" class="state" data-state="checking">{{ t(text.UI_CHECKING) }}</span></div>
+      </div>
+      <p class="help checked-at">{{ t(text.UI_CHECKED) }} <span id="checked-at">—</span></p>
+    </section>
+    <footer><span>{{ app.NAME }} <span class="footer-dot">/</span> {{ t(text.UI_FOOTER) }}</span><a href="/health">/health <span aria-hidden="true">↗</span></a></footer>
+  </main>
+  <dialog id="restart-dialog" aria-labelledby="restart-heading" aria-describedby="restart-description">
+    <h2 id="restart-heading">{{ t(text.UI_RESTART) }}</h2><p id="restart-description">{{ t(text.UI_RESTART_CONFIRM) }}</p>
+    <form method="dialog" class="dialog-actions"><button value="cancel">{{ t(text.UI_CANCEL) }}</button><button value="restart" class="primary">{{ t(text.UI_RESTART) }}</button></form>
+  </dialog>
+  <script id="page-data" type="application/json">{{ page_data|tojson }}</script>
+</body>
+</html>

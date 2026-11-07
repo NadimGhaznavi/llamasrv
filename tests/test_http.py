@@ -20,8 +20,11 @@ from unittest.mock import ANY, Mock, patch
 
 from llamasrv.constants.DHTTP import DHTTP
 from llamasrv.constants.DLlamaSrv import DLlamaSrv
+from llamasrv.interface.Configuration import Configuration
+from llamasrv.interface.Localizer import Localizer
 from llamasrv.server.LlamaSrvHandler import LlamaSrvHandler
 from llamasrv.server.LlamaSrvServer import LlamaSrvServer, main
+from support import fixture_configuration, write_configuration
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +32,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class HTTPTests(unittest.TestCase):
     def setUp(self):
-        self.server = LlamaSrvServer(("127.0.0.1", 0), llama=Mock(health=Mock(return_value=True)))
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.configuration = Path(self.directory.name) / 'conf/llamasrv.json'
+        self.values = fixture_configuration(Path(self.directory.name))
+        write_configuration(self.configuration, self.values)
+        self.server = LlamaSrvServer(("127.0.0.1", 0), llama=Mock(health=Mock(return_value=True)),
+                                    configuration=Configuration(self.configuration))
         self.worker = Thread(target=self.server.serve_forever,
                              kwargs={"poll_interval": 0.01})
         self.worker.start()
@@ -50,7 +59,7 @@ class HTTPTests(unittest.TestCase):
             connection.close()
 
     def test_get_and_head_contract(self):
-        for path in ("/", "/health", "/health?lang=en", "/missing"):
+        for path in ("/api", "/health", "/health?lang=en", "/missing"):
             with self.subTest(path=path):
                 status, headers, body = self.request("GET", path)
                 self.assertEqual(status, 404 if path == "/missing" else 200)
@@ -63,10 +72,137 @@ class HTTPTests(unittest.TestCase):
                 self.assertEqual(head_status, status)
                 self.assertEqual(head_headers["Content-Length"], headers["Content-Length"])
                 self.assertEqual(head_body, b"")
-        self.assertEqual(json.loads(self.request("GET", "/")[2]), {
+        self.assertEqual(json.loads(self.request("GET", "/api")[2]), {
             "application": "LlamaSrv", "version": DLlamaSrv.VERSION, "health": "/health"})
         self.assertEqual(json.loads(self.request("GET", "/health")[2]), {
             "status": "ok", "components": {"http": "ok", "llm": "ok"}})
+
+    def test_control_panel_and_whitelisted_assets(self):
+        status, headers, body = self.request('GET', '/?lang=en', headers={'Accept-Language': 'fr'})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Content-Type'], 'text/html; charset=utf-8')
+        self.assertIn(b'<html lang="en">', body)
+        for field in ('http_port', 'llm_port', 'context_size', 'metrics', 'jinja', 'model', 'mmproj'):
+            self.assertIn(f'name="{field}"'.encode(), body)
+        self.assertIn(b'Restart LLM', body)
+        head_status, head_headers, head_body = self.request('HEAD', '/')
+        self.assertEqual(head_status, 200)
+        self.assertEqual(int(head_headers['Content-Length']), len(body))
+        self.assertEqual(head_body, b'')
+        for name in ('style.css', 'ui.js', 'logo.png'):
+            status, _, asset = self.request('GET', '/static/' + name)
+            self.assertEqual(status, 200)
+            self.assertTrue(asset)
+
+    def post(self, path, values, **extra):
+        return self.request('POST', path, json.dumps(values), {
+            'Content-Type': 'application/json', 'X-LlamaSrv-Request': 'control-panel', **extra})
+
+    def controls(self):
+        return self.server.control.snapshot('en')['settings']
+
+    def test_update_saves_all_controls_without_restarting_and_preserves_other_settings(self):
+        settings = self.controls()
+        settings.update(context_size=8196, jinja=False, metrics=False, mmproj=None)
+        with patch.object(self.server.control.services, 'restart_llm') as restart:
+            status, _, body = self.post('/api/configuration', settings)
+            self.assertEqual(status, 200, body)
+            restart.assert_not_called()
+        saved = json.loads(self.configuration.read_text())
+        self.assertEqual(saved['llama']['context_size'], 8196)
+        self.assertFalse(saved['llama']['jinja'])
+        self.assertFalse(saved['llama']['metrics'])
+        self.assertIsNone(saved['llama']['mmproj'])
+        self.assertEqual(saved['llama']['binary'], self.values['llama']['binary'])
+        self.assertEqual(saved['network'], self.values['network'])
+        self.assertTrue(json.loads(body)['http_restart_required'])
+        self.assertEqual(self.controls(), settings)
+
+    def test_invalid_settings_cannot_change_saved_file(self):
+        original = self.configuration.read_bytes()
+        for key, value in (('http_port', 0), ('llm_port', True), ('context_size', 0),
+                           ('context_size', 1.5), ('jinja', 'false'), ('metrics', None),
+                           ('model', '../elsewhere.gguf'), ('mmproj', []),
+                           ('llm_port', self.values['network']['http']['port'])):
+            with self.subTest(key=key, value=value):
+                values = self.controls()
+                values[key] = value
+                self.assertEqual(self.post('/api/configuration', values)[0], 400)
+                self.assertEqual(self.configuration.read_bytes(), original)
+        self.assertEqual(self.post('/api/configuration', {})[0], 400)
+
+    def test_restart_validates_saved_files_and_reports_failure(self):
+        services = self.server.control.services
+        with patch.object(services, 'restart_llm') as restart:
+            self.assertEqual(self.post('/api/restart', {})[0], 202)
+            restart.assert_called_once_with()
+            restart.reset_mock()
+            self.assertEqual(self.post('/api/restart', {'anything': True})[0], 400)
+            Path(self.values['llama']['binary']).unlink()
+            self.assertEqual(self.post('/api/restart', {})[0], 400)
+            restart.assert_not_called()
+
+    def test_mutation_body_and_origin_boundaries(self):
+        original = self.configuration.read_bytes()
+        self.assertEqual(self.post('/api/configuration', self.controls(), Origin='https://evil.example')[0], 403)
+        self.assertEqual(self.post('/api/restart', {}, **{'Sec-Fetch-Site': 'cross-site'})[0], 403)
+        self.assertEqual(self.request('POST', '/api/restart', '{}', {'Content-Type': 'application/json'})[0], 403)
+        headers = {'Content-Type': 'application/json', 'X-LlamaSrv-Request': 'control-panel'}
+        for body in ('{bad', '[]', 'null'):
+            self.assertEqual(self.request('POST', '/api/configuration', body, headers)[0], 400)
+        self.assertEqual(self.request('POST', '/api/configuration', 'x', {
+            **headers, 'Content-Length': '10000000'})[0], 400)
+        self.assertEqual(self.configuration.read_bytes(), original)
+        self.assertEqual(self.request('GET', '/health')[0], 200)
+
+    def test_html_escapes_operator_paths_and_status_includes_server_wall_time(self):
+        values = self.values
+        values['llama']['model'] = '<script>alert(1)</script>.gguf'
+        write_configuration(self.configuration, values)
+        body = self.request('GET', '/')[2]
+        self.assertIn(b'&lt;script&gt;alert(1)&lt;/script&gt;.gguf', body)
+        self.assertNotIn(b'<script>alert(1)</script>', body)
+        result = json.loads(self.request('GET', '/api/status')[2])
+        self.assertRegex(result['checked_at'], r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+        self.assertTrue(result['timezone'])
+
+    def test_failed_atomic_save_keeps_original_settings(self):
+        original = self.configuration.read_bytes()
+        values = self.controls()
+        values['context_size'] = 4096
+        with patch('llamasrv.interface.Configuration.Path.replace', side_effect=PermissionError('fixture')):
+            status, _, body = self.post('/api/configuration', values)
+        self.assertEqual(status, 503, body)
+        self.assertEqual(self.configuration.read_bytes(), original)
+        self.assertEqual(list(self.configuration.parent.glob('.llamasrv-*')), [])
+
+    def test_model_list_discovers_provisioned_files_and_accepts_selection(self):
+        directory = Path(self.values['llama']['model_dir']) / 'nested'
+        directory.mkdir()
+        (directory / 'second.gguf').write_bytes(b'fixture')
+        snapshot = self.server.control.snapshot('en')
+        self.assertIn('nested/second.gguf', snapshot['models'])
+        self.assertNotIn('projector.gguf', snapshot['models'])
+        values = self.controls()
+        values.update(model='nested/second.gguf', mmproj=None)
+        self.assertEqual(self.post('/api/configuration', values)[0], 200)
+        self.assertEqual(self.controls()['model'], 'nested/second.gguf')
+
+    def test_request_locale_override_negotiation_and_escaping_are_isolated(self):
+        directory = Path(self.directory.name) / 'locales'
+        directory.mkdir()
+        english = (ROOT / 'llamasrv/locales/en.json').read_text()
+        (directory / 'en.json').write_text(english)
+        # Synthetic catalogue verifies the language boundary without shipping translations.
+        (directory / 'fr.json').write_text(json.dumps({'ui.configuration': 'TEST <locale>'}))
+        self.server.localizer = Localizer(directory)
+        _, _, negotiated = self.request('GET', '/', headers={'Accept-Language': 'fr-CA'})
+        self.assertIn(b'<html lang="fr">', negotiated)
+        self.assertIn(b'TEST &lt;locale&gt;', negotiated)
+        _, _, explicit = self.request('GET', '/?lang=en', headers={'Accept-Language': 'fr'})
+        self.assertIn(b'<html lang="en">', explicit)
+        self.assertNotIn(b'TEST &lt;locale&gt;', explicit)
+        self.assertIn(b'<html lang="en">', self.request('GET', '/')[2])
 
     def test_health_failure_and_recovery(self):
         failed = {"status": "error", "components": {"http": "error"}}

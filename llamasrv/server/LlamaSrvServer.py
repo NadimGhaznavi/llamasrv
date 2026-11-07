@@ -6,6 +6,10 @@ import logging
 from pathlib import Path
 import signal
 
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
+
+from llamasrv.activity.ControlPanel import ControlPanel
+from llamasrv.constants.DControl import DControl
 from llamasrv.constants.DHTTP import DHTTP, HealthStatus
 from llamasrv.constants.DLlamaSrv import DLlamaSrv
 from llamasrv.constants.DNetwork import DNetwork
@@ -25,13 +29,28 @@ class LlamaSrvServer(ThreadingHTTPServer):
     daemon_threads = False
     block_on_close = True
 
-    def __init__(self, address: tuple[str, int], *, llama: Llama | None = None):
-        self.llama = llama if llama is not None else Llama(Configuration())
+    def __init__(self, address: tuple[str, int], *, llama: Llama | None = None,
+                 configuration: Configuration | None = None):
+        configuration = configuration if configuration is not None else (
+            llama.configuration if isinstance(llama, Llama) else Configuration())
+        self.llama = llama if llama is not None else Llama(configuration)
+        self.control = ControlPanel(configuration)
+        self.localizer = configuration.localizer
+        self.templates = Environment(
+            loader=FileSystemLoader(Path(__file__).resolve().parent / "templates"),
+            autoescape=select_autoescape(("html", "xml")), undefined=StrictUndefined)
+        self.templates.get_template(DControl.TEMPLATE)
         super().__init__(address, LlamaSrvHandler)
 
     def health(self) -> dict:
         state = HealthStatus.OK if self.fileno() >= 0 else HealthStatus.ERROR
-        inference = HealthStatus.OK if self.llama.health() else HealthStatus.ERROR
+        try:
+            llama = (Llama(self.control.read(self.localizer.default_language))
+                     if isinstance(self.llama, Llama) else self.llama)
+            inference = HealthStatus.OK if llama.health() else HealthStatus.ERROR
+        except ValueError:
+            logging.exception("health_configuration_failed")
+            inference = HealthStatus.ERROR
         healthy = state == HealthStatus.OK and inference == HealthStatus.OK
         return {DHTTP.STATUS: HealthStatus.OK if healthy else HealthStatus.ERROR,
                 DHTTP.COMPONENTS: {DNetwork.HTTP: state, DNetwork.LLM: inference}}

@@ -2,7 +2,9 @@
 
 from ipaddress import IPv4Address
 import json
+import os
 from pathlib import Path
+import tempfile
 
 from llamasrv.constants.DLlama import DLlama
 from llamasrv.constants.DLlamaSrv import DLlamaSrv
@@ -31,6 +33,10 @@ class Configuration:
                 values = json.loads(content)
             except ValueError as error:
                 raise ValueError(self.text(DText.CONFIG_READ_FAILED, error=error)) from error
+        self.resolve(values)
+
+    def resolve(self, values: dict) -> None:
+        """Validate a complete candidate without writing or changing the source file."""
         self.object(values, "root", {DNetwork.NETWORK, DLlama.SECTION})
         self.network = {use: (host, port) for use, host, port in DLlamaSrv.CMDB_NETWORK}
         network = values.get(DNetwork.NETWORK, {})
@@ -99,3 +105,18 @@ class Configuration:
                 for use, (host, port) in self.network.items()},
             DLlama.SECTION: dict(self.llama),
         }
+
+    def save(self) -> None:
+        """Replace the settings atomically; keep the destination's ownership mode."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        mode = self.path.stat().st_mode & 0o777 if self.path.exists() else 0o644
+        with tempfile.NamedTemporaryFile(dir=self.path.parent, prefix=".llamasrv-",
+                                         delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write((json.dumps(self.as_dict(), indent=2) + "\n").encode("utf-8"))
+                stream.flush()
+                os.fchmod(stream.fileno(), mode)
+                temporary.replace(self.path)
+            finally:
+                temporary.unlink(missing_ok=True)

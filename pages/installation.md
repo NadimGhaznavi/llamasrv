@@ -11,16 +11,19 @@ LlamaSrv runs two independent systemd services on one Linux host:
 | Service | Responsibility | Default listener |
 | --- | --- | --- |
 | `llamasrv-llm.service` | llama.cpp inference with one selected model | `0.0.0.0:51001` |
-| `llamasrv-http.service` | Application information and aggregate readiness | `0.0.0.0:51000` |
+| `llamasrv-http.service` | Browser control panel, configuration and aggregate readiness | `0.0.0.0:51000` |
 
 ## Target prerequisites
 
 Development and CPU-only tests run on sally. The initial deployment target is
 wintermute, which supplies the GPU and software stack. The application requires
-Python 3.11 or newer, systemd, `systemd-analyze`, `getent`, `useradd` and `runuser`.
-Its Python code uses only the standard library, so no pip packages or virtual
-environment are required. Deployed Python commands use `/usr/bin/python3` and
-the installed application directory, without relying on a development checkout.
+Python 3.11 or newer with venv/ensurepip support, systemd, `systemd-analyze`,
+`getent`, `useradd`, `runuser`, `chown`, `/usr/bin/sudo` and `/usr/sbin/visudo`.
+The installer deploys the pinned Jinja2/MarkupSafe requirements into
+`/opt/prod/llamasrv/.venv`. Both services and the installed service helper use
+that environment and the installed application directory. Python package
+installation needs access to the pinned requirements, via a package index or
+an operator-configured offline wheel source.
 
 The following externally managed files must already be installed:
 
@@ -47,7 +50,8 @@ sudo ./scripts/install.sh
 `install.sh` supports a first installation and repeated installation. It
 validates prerequisites and settings, verifies rendered unit syntax, creates
 the dedicated `llamasrv` system account if absent, installs application files,
-enables both services and starts inference followed by HTTP. Startup must become
+installs `/etc/sudoers.d/llamasrv`, enables both services and starts inference
+followed by HTTP. Startup must become
 healthy within 120 seconds before `.deployment-version` records success.
 
 For an explicit upgrade of an existing installation:
@@ -103,6 +107,13 @@ paths are also accepted. Set `mmproj` to JSON `null` for a model without a visio
 projector. Changing `model` selects another already-provisioned GGUF; only one
 model is loaded by this service at a time. No shell evaluates configured paths.
 
+`jinja` selects llama.cpp's Jinja chat-template engine for formatting messages
+and tool definitions into the model's prompt. It passes `--jinja` when true and
+`--no-jinja` when false, independently of the binary's default. This does not
+require the Python Jinja2 package. `metrics` enables llama.cpp's Prometheus-format
+`/metrics` endpoint on the inference port, including token throughput and active
+or deferred request counts. It does not install a monitoring collector.
+
 Settings are read at each process start. After editing, either rerun the
 installer, which validates before stopping the existing services, or run:
 
@@ -113,8 +124,44 @@ sudo ./scripts/services start
 
 The helper runs installed code. It stops HTTP before inference and starts
 inference before HTTP. It has no dependency discovery or readiness wait. The
-systemd units themselves have no dependency on ax3l services. The future browser
-settings interface will use this same configuration contract.
+systemd units themselves have no dependency on ax3l services.
+
+## Browser control panel
+
+Open `http://HOST:51000/` to edit listener ports, context size, metrics, Jinja,
+the provisioned GGUF model and its optional vision projector. The model list
+comes from `model_dir`; the panel does not download model files. **Update**
+validates settings and external files, then saves the JSON atomically. It does
+not restart either service. **Restart LLM** asks for confirmation and runs the
+saved inference settings through sequential noninteractive stop/start commands.
+Unsaved edits disable restart until saved or discarded by reloading the page.
+Changing the control-panel port requires a separate HTTP-service restart; the
+browser displays a reminder and continues using the current listener.
+
+The installer makes `conf/` and its JSON file writable by `llamasrv`; installed
+code and privileged policy stay root-owned. `/etc/sudoers.d/llamasrv` is mode
+`0440` and grants the `llamasrv` account passwordless access to only these commands:
+
+```sh
+/usr/bin/systemctl stop llamasrv-http.service
+/usr/bin/systemctl start llamasrv-http.service
+/usr/bin/systemctl stop llamasrv-llm.service
+/usr/bin/systemctl start llamasrv-llm.service
+```
+
+There are no command wildcards or general sudo grants. The HTTP unit allows
+setuid execution for `sudo` (`NoNewPrivileges=false`); inference keeps
+`NoNewPrivileges=true`. Both retain filesystem hardening, with only `conf/`
+writable by HTTP. `visudo` checks the policy before any service changes, and
+installation refuses an existing policy that the manifest does not own.
+The application has no login screen; access to the control-panel listener grants
+configuration and inference-restart control. Bind its HTTP interface to the
+intended trusted network.
+
+Status checks real readiness every five seconds while the page is visible.
+The displayed timestamp uses server-local time and identifies its timezone.
+Machine-readable service information is available at `/api`; `/health` keeps
+its existing readiness response.
 
 ## Verify and diagnose
 
@@ -144,7 +191,8 @@ sudo ./scripts/uninstall.sh
 ```
 
 Removal stops HTTP then inference, disables and removes only application-owned
-units, and removes managed code and the successful-version marker. Runtime
+units, removes its manifest-owned `/etc/sudoers.d/llamasrv` policy and virtual
+environment, and removes managed code and the successful-version marker. Runtime
 configuration, unowned files, external binaries/models and the system account
 are retained. An ownership record remains with retained state so repeated
 uninstall and later reinstall are safe. No data purge is performed.
