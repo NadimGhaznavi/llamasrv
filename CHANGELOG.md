@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated site logo.
+
 ### Summary
 
 Establish the standard BMForge GitHub Pages documentation scaffold for llamasrv.

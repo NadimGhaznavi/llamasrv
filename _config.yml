@@ -11,7 +11,7 @@ locale: "en-US"
 url: "https://llamasrv.osoyalce.com"
 baseurl: ""
 repository: "NadimGhaznavi/llamasrv"
-logo: "/pages/images/llamasrv-logo.svg"
+logo: "/pages/images/llamasrv-logo.png"
 
 mycount:
   endpoint: "https://count.osoyalce.com/count"
