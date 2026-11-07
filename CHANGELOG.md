@@ -16,13 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Updated site logo.
-
 ### Summary
 
-Establish the standard BMForge GitHub Pages documentation scaffold for llamasrv.
+Establish the BMForge application and documentation scaffolds for LlamaSrv,
+including pinned HTTP guidance, version metadata, and prepared release and
+installation tooling.
 
 ### Added
 
@@ -32,10 +30,22 @@ Establish the standard BMForge GitHub Pages documentation scaffold for llamasrv.
 - Documentation homepage, maintenance guide, and original SVG project logo.
 - GitHub Actions workflow to build and deploy the documentation from `main`.
 - Ignore rules for generated Jekyll output and caches.
+- Pinned `bmforge-http` skill for the planned application web interface.
+- Pinned `bmforge-project`, `bmforge-constants`, `bmforge-localization`, and
+  `bmforge-installation` baseline skills at BMForge revision `29a100c39997`.
+- Project engineering instructions and canonical `LlamaSrv` metadata, with
+  initial version `0.0.0`, subtype `Application`, and base directory
+  `/opt/prod/llamasrv`.
+- Standard BMForge release script, CMDB checker, and deployment-disabled
+  install, upgrade, and uninstall templates.
+- Development guide covering the scaffold, verification, and remaining
+  application implementation work.
 
 ### Changed
 
+- Updated site logo.
 - Keep the README focused on the project overview and documentation link.
+- Exclude the application package from the documentation site output.
 
 ---
 

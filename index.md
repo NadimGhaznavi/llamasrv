@@ -16,12 +16,13 @@ Linux systemd service to run llama-server.
 
 ## Project status
 
-This repository currently contains the project documentation scaffold.
-Installation and service configuration guides will accompany the service
-implementation.
+This repository contains the BMForge application and documentation scaffolds,
+including version metadata and prepared release and installation tooling.
+The llama-server service and application web interface remain to be implemented.
 
 ## Documentation
 
+- [Development setup]({{ site.baseurl }}{% link pages/development.md %})
 - [Maintaining the documentation]({{ site.baseurl }}{% link pages/documentation.md %})
 - [Changelog]({{ site.baseurl }}{% link CHANGELOG.md %})
 - [Source repository](https://github.com/NadimGhaznavi/llamasrv)
