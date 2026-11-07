@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-07 @ 03:28
+
 ### Summary
 
 Run a configurable standalone llama-server on port 51001 alongside LlamaSrv's
