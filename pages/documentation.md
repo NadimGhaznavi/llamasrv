@@ -34,8 +34,8 @@ subpath. For example:
 {% endraw %}
 
 The site uses the dark skin, wide content, and author sidebar supplied by the
-theme. Both the masthead and homepage use the original project logo at
-`pages/images/llamasrv-logo.svg`, selected through `logo` in `_config.yml`.
+theme. Both the masthead and homepage use the project logo at
+`pages/images/llamasrv-logo.png`, selected through `logo` in `_config.yml`.
 
 English is the default language. Multilingual support is enabled; add translated
 pages only when requested, reusing the corresponding English translation key.
@@ -61,11 +61,13 @@ and mobile view. The shared MyCount endpoint must use the `llamasrv` site
 identifier. Check translated navigation and the language selector when
 translations are added.
 
-## Pinned BMForge skill
+## Pinned BMForge skills
 
-The project pins `bmforge-github-pages` specification `0.1.0` in
-`.agents/bmforge/lock.json`. Check local integrity and compare with the cached
-BMForge source using:
+The documentation site pins `bmforge-github-pages` specification `0.1.0`.
+The application baseline and HTTP skills are listed in the
+[development guide]({{ site.baseurl }}{% link pages/development.md %}); all pins
+are recorded in `.agents/bmforge/lock.json`. Check local integrity and compare
+with the cached BMForge source using:
 
 ```sh
 python3 .agents/bmforge/manage.py check --project .
