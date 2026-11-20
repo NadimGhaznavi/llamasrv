@@ -11,9 +11,10 @@ translation_key: llamasrv-upgrade
 
 Use `upgrade.sh` for an **existing** LlamaSrv installation. It updates the application, Python dependencies, and service definitions while retaining your configuration.
 
-From the repository checkout on the installed host:
+From the source checkout on the target host:
 
 ```sh
+cd /opt/dev/llamasrv
 git pull --ff-only
 ./scripts/upgrade.sh --check
 sudo ./scripts/upgrade.sh
