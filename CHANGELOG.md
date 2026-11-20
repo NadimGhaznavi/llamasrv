@@ -16,6 +16,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20 @ 05:31
+
+### Summary
+
+Keep the project's pinned BMForge guidance current and provide a separate PROD
+procedure for building and trying Qwen3.5-9B with vision alongside the existing 4B setup.
+
+### Added
+
+- A linked Qwen3.5-9B guide covering source conversion, Q4_K_M quantization,
+  F16 vision projector installation, checksums, a 16k-context single-slot trial,
+  text/image checks and restoration of the previous model and service settings.
+  The existing 4B procedure and application defaults are preserved.
+
+### Changed
+
+- Updated the six existing pinned BMForge skills and local manager to cached
+  revision `7554b12a1733`, preserving attached mode, selected components and
+  specification versions.
+
 ## [0.2.5] - 2026-11-07 @ 07:09
 
 ### Changed
