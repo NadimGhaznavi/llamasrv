@@ -51,7 +51,7 @@ SKILLS = {
         "components/reference/bmdynip/bmdynip/server/static/index.html",
         "components/reference/bmdynip/bmdynip/server/static/style.css",
     )),
-    "bmforge-zmq": ("pages/component-zmq.md", (
+    "bmforge-zmq": ("pages/component-zmq-contract.md", (
         "components/reference/bmgeoip/bmgeoip/zmq/ZMQServer.py",
         "components/reference/bmgeoip/bmgeoip/zmq/ZMQMsg.py",
     )),

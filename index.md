@@ -26,6 +26,7 @@ The default setup runs Qwen3.5-4B with a vision projector.
 ## Getting Started
 
 - [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %})
+- [Build and Install Qwen3.5-9B with Vision]({{ site.baseurl }}{% link pages/qwen3.5-9b-setup.md %})
 - [Install LlamaSrv]({{ site.baseurl }}{% link pages/install.md %})
 - [Using LlamaSrv]({{ site.baseurl }}{% link pages/usage.md %})
 - [Upgrade]({{ site.baseurl }}{% link pages/upgrade.md %})
