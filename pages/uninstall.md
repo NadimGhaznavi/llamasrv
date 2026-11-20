@@ -9,9 +9,10 @@ language_name: English
 translation_key: llamasrv-uninstall
 ---
 
-From the repository checkout on the installed host:
+From the source checkout on the target host:
 
 ```sh
+cd /opt/dev/llamasrv
 ./scripts/uninstall.sh --check
 sudo ./scripts/uninstall.sh
 ```

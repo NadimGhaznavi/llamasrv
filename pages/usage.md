@@ -17,7 +17,26 @@ Open `http://HOST:51000/`. Choose a provisioned GGUF model and optional vision p
 
 **Update** saves configuration without restarting the services. **Restart LLM** applies saved inference settings. Changing the control-panel port requires an HTTP-service restart.
 
-LlamaSrv loads **one model at a time** from its configured model directory; it does not download models.
+## Switch models
+
+[Deploy the model files]({{ site.baseurl }}{% link pages/models.md %}), then open
+the control panel at `http://HOST:51000/`.
+
+1. Select the GGUF in **Model** and its matching file in **Vision projector**.
+   Choose **None** for a text-only model.
+2. Set **Context size** for the model and the available memory.
+3. Click **Update**, then **Restart LLM** and confirm.
+
+When inference is ready, confirm the selected model. For a vision model, check
+that `/props` shows `"vision": true` under `modalities`.
+
+```sh
+curl -fsS http://127.0.0.1:51001/v1/models
+curl -fsS http://127.0.0.1:51001/props
+```
+
+If the model fails to load, [check the service logs](#check-status) or switch
+back to the previous model, projector, and context size.
 
 ## Configuration
 
@@ -49,7 +68,7 @@ curl http://127.0.0.1:51001/v1/chat/completions \
   }'
 ```
 
-These OpenAI-compatible endpoints come from llama.cpp, not the LlamaSrv control panel. If `/v1/models` reports a different model identifier, use that identifier in the chat request.
+Use the model identifier returned by llama.cpp's `/v1/models` in the chat request.
 
 ## Check status
 
