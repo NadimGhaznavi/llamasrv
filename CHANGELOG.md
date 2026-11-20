@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20 @ 05:31
+
 ### Summary
 
 Keep the project's pinned BMForge guidance current and provide a separate PROD
