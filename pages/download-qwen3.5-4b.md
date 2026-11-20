@@ -18,16 +18,10 @@ git clone --depth 1 https://huggingface.co/Qwen/Qwen3.5-4B
 mkdir -p models/intermediate models/quantized
 ```
 
-Create an isolated conversion environment and install the dependencies provided by llama.cpp:
-
-```sh
-python3 -m venv "$HOME/llamasrv-work/.venv"
-"$HOME/llamasrv-work/.venv/bin/python" -m pip install \
-  -r "$HOME/llamasrv-work/llama.cpp/requirements.txt"
-```
+Before converting the model, complete the shared [Python venv setup]({{ site.baseurl }}{% link pages/venv-setup.md %}).
 
 ---
 
-[Previous: Build llama.cpp]({{ site.baseurl }}{% link pages/build-llama-cpp.md %}) · [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %}) · [Next: Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-4b.md %})
+[Previous: Set up the Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %}) · [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %}) · [Next: Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-4b.md %})
 
 [Documentation index]({{ site.baseurl }}{% link index.md %})

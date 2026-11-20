@@ -50,6 +50,6 @@ For additional backends and build options, see the [llama.cpp build guide](https
 
 ---
 
-[Previous: Prepare Linux]({{ site.baseurl }}{% link pages/prepare-linux.md %}) · [Next: Choose a model]({{ site.baseurl }}{% link pages/environment-setup.md %}#models)
+[Previous: Prepare Linux]({{ site.baseurl }}{% link pages/prepare-linux.md %}) · [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %}) · [Next: Set up the Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %})
 
 [Documentation index]({{ site.baseurl }}{% link index.md %})

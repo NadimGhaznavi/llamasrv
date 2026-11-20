@@ -29,9 +29,10 @@ The default setup runs Qwen3.5-4B with a vision projector.
 
     1. [Prepare Linux]({{ site.baseurl }}{% link pages/prepare-linux.md %})
     2. [Build llama.cpp]({{ site.baseurl }}{% link pages/build-llama-cpp.md %})
-    3. [Download Qwen3.5-4B]({{ site.baseurl }}{% link pages/download-qwen3.5-4b.md %})
-    4. [Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-4b.md %})
-    5. [Install and verify LlamaSrv]({{ site.baseurl }}{% link pages/install-verify-llamasrv.md %})
+    3. [Set up the Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %})
+    4. [Download Qwen3.5-4B]({{ site.baseurl }}{% link pages/download-qwen3.5-4b.md %})
+    5. [Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-4b.md %})
+    6. [Install and verify LlamaSrv]({{ site.baseurl }}{% link pages/install-verify-llamasrv.md %})
 
 - [Qwen3.5-9B with Vision]({{ site.baseurl }}{% link pages/environment-setup.md %}#qwen-35-9b)
 

@@ -23,6 +23,10 @@ Follow these steps in order:
 
 2. [Build llama.cpp]({{ site.baseurl }}{% link pages/build-llama-cpp.md %})
 
+## Set up the Python venv
+
+3. [Set up the Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %})
+
 ## Models
 
 The instructions below are for building different models.
@@ -41,7 +45,7 @@ B. [Convert and install the model]({{ site.baseurl }}{% link pages/convert-insta
 
 ## Install and Verify LlamaSrv
 
-3. [Install and verify LlamaSrv]({{ site.baseurl }}{% link pages/install-verify-llamasrv.md %})
+4. [Install and verify LlamaSrv]({{ site.baseurl }}{% link pages/install-verify-llamasrv.md %})
 
 ---
 

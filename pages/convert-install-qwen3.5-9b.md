@@ -9,7 +9,7 @@ language_name: English
 translation_key: llamasrv-convert-install-qwen35-9b
 ---
 
-From the llama.cpp checkout, convert the **language model** to BF16:
+From the llama.cpp checkout, use the [Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %}) to convert the **language model** to BF16:
 
 ```sh
 cd "$HOME/llamasrv-work/llama.cpp"

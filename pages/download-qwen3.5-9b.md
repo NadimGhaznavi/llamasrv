@@ -22,16 +22,10 @@ mkdir -p models/intermediate models/quantized
 
 If a download is interrupted, resume with `git -C Qwen3.5-9B lfs pull`.
 
-Create the conversion environment and install the dependencies provided by llama.cpp. If you prepared this environment for 4B, reuse it:
-
-```sh
-python3 -m venv "$HOME/llamasrv-work/.venv"
-"$HOME/llamasrv-work/.venv/bin/python" -m pip install \
-  -r "$HOME/llamasrv-work/llama.cpp/requirements.txt"
-```
+Before converting the model, complete the shared [Python venv setup]({{ site.baseurl }}{% link pages/venv-setup.md %}). The same environment supports both 4B and 9B.
 
 ---
 
-[Previous: Build llama.cpp]({{ site.baseurl }}{% link pages/build-llama-cpp.md %}) · [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %}) · [Next: Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-9b.md %})
+[Previous: Set up the Python venv]({{ site.baseurl }}{% link pages/venv-setup.md %}) · [Environment Setup]({{ site.baseurl }}{% link pages/environment-setup.md %}) · [Next: Convert and install the model]({{ site.baseurl }}{% link pages/convert-install-qwen3.5-9b.md %})
 
 [Documentation index]({{ site.baseurl }}{% link index.md %})

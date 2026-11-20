@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Summary
+
+Python venv setup now has its own shared guide before model conversion, making
+the required environment easier to find for both 4B and 9B. Converter dependency
+installation is included in the same procedure.
+
+### Changed
+
+- Moved duplicate model-conversion venv commands into a shared setup page with
+  a dependency check, linked from environment setup, the index and both model
+  paths. Clarified that the installer creates the services' separate venv.
+
+### Fixed
+
+- Made the llama.cpp source directory explicit in venv setup and installed its
+  converter-specific requirements directly in the setup commands.
+- Removed the separate converter requirements documentation link so readers
+  can follow the complete setup from the venv page.
+
 ## [0.3.1] - 2026-11-20 @ 18:02
 
 ### Summary
