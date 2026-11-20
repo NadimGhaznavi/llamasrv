@@ -31,13 +31,14 @@ LlamaSrv has two independent processes. The HTTP service manages configuration a
 | `tests/` | Configuration, HTTP, runtime, and deployment tests |
 | `pages/` | Website and user documentation |
 
-The installed code and JSON configuration live in `/opt/prod/llamasrv`. The llama.cpp binary and models remain external, so the service can be shared with applications such as R3el and ND3G.
+Develop in `/opt/dev/llamasrv`. The installed code and JSON configuration live in `/opt/prod/llamasrv`. The llama.cpp binary and models remain external, so the service can be shared with applications such as R3el and ND3G.
 
 ## Local development
 
 Use Python 3.11 or newer. Automated tests do not require a GPU:
 
 ```sh
+cd /opt/dev/llamasrv
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m unittest discover -s tests -v
