@@ -16,6 +16,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-20 @ 18:02
+
+### Summary
+
+Environment setup now uses short linked guides for host preparation, model
+download and conversion, and shared installation and verification of 4B or 9B.
+Both models use the environment setup page as their overview.
+
+### Changed
+
+- Split the five environment setup steps into separate pages, preserving their
+  shell commands and adding an overview, index links and previous/next navigation.
+- Matched Qwen3.5-9B to the 4B download and conversion page format, linked both
+  model paths from environment setup, and shared installation and verification
+  guidance with explicit 4B prerequisites and 9B model selection.
+
+### Removed
+
+- Removed the redundant Qwen3.5-9B setup overview and pointed its index link to
+  the 9B section of environment setup.
+
 ## [0.3.0] - 2026-11-20 @ 05:31
 
 ### Summary
