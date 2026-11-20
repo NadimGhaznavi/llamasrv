@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-20 @ 18:38
+
+### Summary
+
+The setup guides follow the `/opt/dev` build and `/opt/prod` deployment
+layout. Both Qwen models use one install procedure.
+
+### Changed
+
+- Grouped Linux setup, llama.cpp deployment, and converter dependencies in
+  one host preparation guide.
+- Consolidated model download, conversion, and deployment into a reusable
+  guide with model-specific values in a table.
+- Linked model selection to the control-panel guide and combined LlamaSrv
+  installation and verification. Existing guide URLs point to the new steps.
+
 ## [0.3.1] - 2026-11-20 @ 18:02
 
 ### Summary

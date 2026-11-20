@@ -9,7 +9,7 @@ language_name: English
 translation_key: llamasrv-scripts
 ---
 
-The LlamaSrv repository includes three service-lifecycle scripts. Run them from a checkout on the target Linux host.
+The LlamaSrv repository includes three service-lifecycle scripts. Run them from `/opt/dev/llamasrv` on the target host.
 
 | Task | Guide | Command |
 | --- | --- | --- |
