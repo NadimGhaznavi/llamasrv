@@ -5,6 +5,7 @@ from typing import Final
 
 
 class DHTTP:
+    OK: Final[int] = 200
     ROOT: Final[str] = "/"
     HEALTH: Final[str] = "/health"
     INFO: Final[str] = "/api"
