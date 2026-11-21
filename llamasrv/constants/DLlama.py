@@ -16,8 +16,10 @@ class DLlama:
     DEFAULT_MODEL_DIR: Final[str] = "/opt/prod/models"
     DEFAULT_METRICS: Final[bool] = True
     DEFAULT_JINJA: Final[bool] = True
+    DEFAULT_IMAGE_MIN_TOKENS: Final[int] = 1024
     MODEL_OPTION: Final[str] = "--model"
     MMPROJ_OPTION: Final[str] = "--mmproj"
+    IMAGE_MIN_TOKENS_OPTION: Final[str] = "--image-min-tokens"
     CONTEXT_OPTION: Final[str] = "-c"
     HOST_OPTION: Final[str] = "--host"
     PORT_OPTION: Final[str] = "--port"

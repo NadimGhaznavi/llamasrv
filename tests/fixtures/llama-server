@@ -12,6 +12,7 @@ import signal
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', required=True)
 parser.add_argument('--mmproj')
+parser.add_argument('--image-min-tokens', type=int)
 parser.add_argument('-c', type=int, required=True)
 parser.add_argument('--host', required=True)
 parser.add_argument('--port', type=int, required=True)

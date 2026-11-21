@@ -27,6 +27,11 @@ the control panel at `http://HOST:51000/`.
 2. Set **Context size** for the model and the available memory.
 3. Click **Update**, then **Restart LLM** and confirm.
 
+Selecting a vision projector automatically sets a minimum of 1024 tokens per
+image to support accurate grounding with Qwen vision models. Choosing **None**
+omits this option. Larger image token budgets can increase processing time and
+memory use.
+
 When inference is ready, confirm the selected model. For a vision model, check
 that `/props` shows `"vision": true` under `modalities`.
 
