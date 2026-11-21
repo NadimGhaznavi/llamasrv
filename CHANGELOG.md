@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-20 @ 19:19
+
+### Summary
+
+Selecting a vision projector now sets a minimum image token budget to support
+accurate grounding with Qwen vision models.
+
+### Fixed
+
+- Pass `--image-min-tokens 1024` when a vision projector is enabled, including
+  selections saved through the web control panel. Omit the option for text-only
+  configurations and document how the projector selection controls it.
+
 ## [0.3.2] - 2026-11-20 @ 18:38
 
 ### Summary

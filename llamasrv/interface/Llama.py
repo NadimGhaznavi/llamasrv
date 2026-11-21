@@ -73,7 +73,9 @@ class Llama:
         host, port = Network(self.configuration).binding(DNetwork.LLM)
         arguments = [str(binary), DLlama.MODEL_OPTION, str(model)]
         if projector is not None:
-            arguments.extend((DLlama.MMPROJ_OPTION, str(projector)))
+            arguments.extend((DLlama.MMPROJ_OPTION, str(projector),
+                              DLlama.IMAGE_MIN_TOKENS_OPTION,
+                              str(DLlama.DEFAULT_IMAGE_MIN_TOKENS)))
         arguments.extend((DLlama.CONTEXT_OPTION, str(settings[DLlama.CONTEXT_SIZE]),
                           DLlama.HOST_OPTION, host, DLlama.PORT_OPTION, str(port)))
         if settings[DLlama.METRICS]:

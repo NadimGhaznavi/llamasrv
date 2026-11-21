@@ -48,6 +48,7 @@ class LlamaTests(unittest.TestCase):
         binary, model, projector = llama.files()
         self.assertEqual(llama.command(), [
             str(binary), '--model', str(model), '--mmproj', str(projector),
+            '--image-min-tokens', '1024',
             '-c', '12288', '--host', '127.0.0.1', '--port',
             str(self.values['network']['llm']['port']), '--metrics', '--jinja'])
         self.values['llama'].update(mmproj=None, metrics=False, jinja=False,
@@ -55,6 +56,7 @@ class LlamaTests(unittest.TestCase):
         command = self.llama().command()
         self.assertEqual(command[command.index('--model') + 1], '/other/model.gguf')
         self.assertNotIn('--mmproj', command)
+        self.assertNotIn('--image-min-tokens', command)
         self.assertNotIn('--metrics', command)
         self.assertNotIn('--jinja', command)
         self.assertIn('--no-jinja', command)
@@ -130,6 +132,7 @@ class LlamaTests(unittest.TestCase):
                         actual = json.loads(arguments.read_text())
                         self.assertEqual(actual['model'], str(self.llama().files()[1]))
                         self.assertEqual(actual['c'], 12288)
+                        self.assertEqual(actual['image_min_tokens'], 1024)
                         self.assertEqual(actual['jinja'], self.values['llama']['jinja'])
                         self.assertTrue(self.llama().health())
                         state.write_text('loading model')
