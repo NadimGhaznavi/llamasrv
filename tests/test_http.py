@@ -1,6 +1,6 @@
 """HTTP transport and real-process lifecycle acceptance checks."""
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from http.client import HTTPConnection
 import io
@@ -60,17 +60,27 @@ class HTTPTests(unittest.TestCase):
             connection.close()
 
     def test_get_and_head_contract(self):
-        for path in ("/api", "/health", "/health?lang=en", "/missing"):
+        for path in ("/api", "/health", "/health?lang=en", "/api/status", "/missing"):
             with self.subTest(path=path):
-                status, headers, body = self.request("GET", path)
+                with redirect_stderr(io.StringIO()) as logs:
+                    status, headers, body = self.request("GET", path)
                 self.assertEqual(status, 404 if path == "/missing" else 200)
+                if status == 200:
+                    self.assertEqual(logs.getvalue(), "")
+                else:
+                    self.assertIn(f'"GET {path} HTTP/1.1" 404 ', logs.getvalue())
                 self.assertEqual(headers["Content-Type"], "application/json; charset=utf-8")
                 self.assertEqual(int(headers["Content-Length"]), len(body))
                 self.assertEqual(headers["Cache-Control"], "no-store")
                 self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
                 json.loads(body)
-                head_status, head_headers, head_body = self.request("HEAD", path)
+                with redirect_stderr(io.StringIO()) as logs:
+                    head_status, head_headers, head_body = self.request("HEAD", path)
                 self.assertEqual(head_status, status)
+                if head_status == 200:
+                    self.assertEqual(logs.getvalue(), "")
+                else:
+                    self.assertIn(f'"HEAD {path} HTTP/1.1" 404 ', logs.getvalue())
                 self.assertEqual(head_headers["Content-Length"], headers["Content-Length"])
                 self.assertEqual(head_body, b"")
         self.assertEqual(json.loads(self.request("GET", "/api")[2]), {
@@ -156,6 +166,26 @@ class HTTPTests(unittest.TestCase):
             self.assertEqual(self.post('/api/restart', {})[0], 400)
             restart.assert_not_called()
 
+    def test_restart_acceptance_and_submission_failure_while_llm_is_unavailable(self):
+        self.server.llama.health.return_value = False
+        services = self.server.control.services
+        with patch.object(services, 'run', return_value=subprocess.CompletedProcess([], 0)) as runner:
+            status, _, body = self.post('/api/restart', {})
+            self.assertEqual(status, 202, body)
+            self.assertIn('message', json.loads(body))
+            runner.assert_called_once()
+        self.assertEqual(self.request('GET', '/api/status')[0], 503)
+        for error in (subprocess.CalledProcessError(1, ['sudo'], stderr='denied'),
+                      subprocess.TimeoutExpired(['sudo'], 30)):
+            with self.subTest(error=type(error).__name__), patch.object(services, 'run', side_effect=error):
+                with self.assertLogs(level='ERROR') as logs:
+                    status, _, body = self.post('/api/restart', {})
+                self.assertEqual(status, 503, body)
+                self.assertIn('error', json.loads(body))
+                self.assertIn('control_panel_operation_failed', logs.output[0])
+        self.server.llama.health.return_value = True
+        self.assertEqual(self.request('GET', '/api/status')[0], 200)
+
     def test_mutation_body_and_origin_boundaries(self):
         original = self.configuration.read_bytes()
         self.assertEqual(self.post('/api/configuration', self.controls(), Origin='https://evil.example')[0], 403)
@@ -220,11 +250,14 @@ class HTTPTests(unittest.TestCase):
 
     def test_health_failure_and_recovery(self):
         failed = {"status": "error", "components": {"http": "error"}}
-        with patch.object(self.server, "health", return_value=failed):
+        with patch.object(self.server, "health", return_value=failed), redirect_stderr(io.StringIO()) as logs:
             status, _, body = self.request("GET", "/health")
             self.assertEqual(status, 503)
             self.assertEqual(json.loads(body), failed)
-        self.assertEqual(self.request("GET", "/health")[0], 200)
+        self.assertIn('"GET /health HTTP/1.1" 503 ', logs.getvalue())
+        with redirect_stderr(io.StringIO()) as logs:
+            self.assertEqual(self.request("GET", "/health")[0], 200)
+        self.assertEqual(logs.getvalue(), "")
 
     def test_inference_failure_is_reported_and_recovers(self):
         self.server.llama.health.return_value = False

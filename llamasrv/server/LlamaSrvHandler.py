@@ -24,6 +24,10 @@ class LlamaSrvHandler(BaseHTTPRequestHandler):
     def log_date_time_string(self) -> str:
         return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
+    def log_request(self, code="-", size="-") -> None:
+        if code != DHTTP.OK:
+            super().log_request(code, size)
+
     def locale(self) -> str:
         query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
         return self.server.localizer.select(
@@ -49,16 +53,16 @@ class LlamaSrvHandler(BaseHTTPRequestHandler):
             if path == DHTTP.ROOT:
                 self.home()
             elif path == DHTTP.INFO:
-                self.respond(200, {DHTTP.APPLICATION: DLlamaSrv.NAME,
-                                   DHTTP.VERSION: DLlamaSrv.VERSION,
-                                   DHTTP.HEALTH_LINK: DHTTP.HEALTH})
+                self.respond(DHTTP.OK, {DHTTP.APPLICATION: DLlamaSrv.NAME,
+                                       DHTTP.VERSION: DLlamaSrv.VERSION,
+                                       DHTTP.HEALTH_LINK: DHTTP.HEALTH})
             elif path in (DHTTP.HEALTH, DHTTP.LIVE_STATUS):
                 health = self.server.health()
                 if path == DHTTP.LIVE_STATUS:
                     now = datetime.now().astimezone()
                     health.update({DControl.CHECKED_AT: now.strftime("%Y-%m-%d %H:%M:%S"),
                                    DControl.TIMEZONE: now.tzname()})
-                self.respond(200 if health[DHTTP.STATUS] == HealthStatus.OK else 503, health)
+                self.respond(DHTTP.OK if health[DHTTP.STATUS] == HealthStatus.OK else 503, health)
             elif path in (DHTTP.CONFIGURATION, DHTTP.RESTART):
                 self.respond(405, {DHTTP.ERROR: DHTTP.METHOD_NOT_ALLOWED}, allow="POST")
             elif path.startswith(DHTTP.STATIC):
@@ -67,7 +71,7 @@ class LlamaSrvHandler(BaseHTTPRequestHandler):
                     self.respond(404, {DHTTP.ERROR: DHTTP.NOT_FOUND})
                     return
                 asset = Path(__file__).resolve().parent / "static" / name
-                self.respond_bytes(200, asset.read_bytes(), DHTTP.STATIC_FILES[name])
+                self.respond_bytes(DHTTP.OK, asset.read_bytes(), DHTTP.STATIC_FILES[name])
             else:
                 self.respond(404, {DHTTP.ERROR: DHTTP.NOT_FOUND})
         except (ValueError, OSError):
@@ -90,7 +94,7 @@ class LlamaSrvHandler(BaseHTTPRequestHandler):
             app=DLlamaSrv, text=DText, locale=locale, t=self.text,
             languages=self.server.localizer.languages, snapshot=snapshot, page_data=page_data,
             http_port=self.server.server_port)
-        self.respond_bytes(200, html.encode("utf-8"), "text/html; charset=utf-8")
+        self.respond_bytes(DHTTP.OK, html.encode("utf-8"), "text/html; charset=utf-8")
 
     def do_POST(self) -> None:
         try:
@@ -129,7 +133,7 @@ class LlamaSrvHandler(BaseHTTPRequestHandler):
                 raise ValueError(self.text(DText.UI_BODY_INVALID))
             if path == DHTTP.CONFIGURATION:
                 self.server.control.update(values, self.locale())
-                self.respond(200, {
+                self.respond(DHTTP.OK, {
                     DControl.MESSAGE: self.text(DText.UI_SAVED),
                     DControl.HTTP_RESTART_REQUIRED: values[DControl.HTTP_PORT] != self.server.server_port})
             else:
