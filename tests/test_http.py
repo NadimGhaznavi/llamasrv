@@ -21,6 +21,7 @@ from unittest.mock import ANY, Mock, patch
 from llamasrv.constants.DHTTP import DHTTP
 from llamasrv.constants.DLlamaSrv import DLlamaSrv
 from llamasrv.interface.Configuration import Configuration
+from llamasrv.interface.Llama import Llama
 from llamasrv.interface.Localizer import Localizer
 from llamasrv.server.LlamaSrvHandler import LlamaSrvHandler
 from llamasrv.server.LlamaSrvServer import LlamaSrvServer, main
@@ -117,6 +118,19 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(saved['network'], self.values['network'])
         self.assertTrue(json.loads(body)['http_restart_required'])
         self.assertEqual(self.controls(), settings)
+
+    def test_projector_selection_controls_image_token_floor(self):
+        for projector in (None, 'projector.gguf'):
+            with self.subTest(projector=projector):
+                settings = self.controls()
+                settings['mmproj'] = projector
+                status, _, body = self.post('/api/configuration', settings)
+                self.assertEqual(status, 200, body)
+                command = Llama(Configuration(self.configuration)).command()
+                if projector is None:
+                    self.assertNotIn('--image-min-tokens', command)
+                else:
+                    self.assertEqual(command[command.index('--image-min-tokens') + 1], '1024')
 
     def test_invalid_settings_cannot_change_saved_file(self):
         original = self.configuration.read_bytes()
