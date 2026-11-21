@@ -191,8 +191,13 @@ class InstallationTests(unittest.TestCase):
         ownership['files'].append('llamasrv/obsolete.py')
         manifest.write_text(json.dumps(ownership))
         self.next_version()
+        sudoers.chmod(0o640)
+        sudoers.write_text(sudoers.read_text().replace(
+            f', /usr/bin/systemctl --no-block restart {DService.LLM}', ''))
+        sudoers.chmod(0o440)
         self.system.calls.clear()
         self.installer().apply('upgrade')
+        self.assertEqual(sudoers.read_text(), (ROOT / 'systemd/llamasrv.sudoers').read_text())
         self.assertEqual(configuration.read_bytes(), saved)
         self.assertEqual(user_file.read_text(), 'retain this')
         self.assertFalse(obsolete.exists())

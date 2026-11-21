@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Summary
+
+Successful HTTP checks no longer fill the service log during control-panel polling.
+LLM restarts now run through systemd without waiting in the web request for shutdown.
+
+### Fixed
+
+- Suppress HTTP 200 access logs while retaining logs for other response codes
+  and request errors.
+- Submit a single nonblocking LLM restart job so a slow shutdown cannot time out
+  between separate stop and start commands. Add its exact sudoers permission;
+  acknowledge accepted jobs while readiness polling tracks model availability.
+
 ## [0.3.3] - 2026-11-20 @ 19:19
 
 ### Summary

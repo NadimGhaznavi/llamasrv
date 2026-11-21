@@ -82,10 +82,10 @@ class Services:
             self.command("systemctl", "start", name)
 
     def restart_llm(self) -> None:
-        """Use the exact passwordless commands granted by our installed sudoers file."""
+        """Let systemd complete the restart after accepting the authorized job."""
         try:
-            for action in ("stop", "start"):
-                self.command(DService.SUDO, "-n", DService.SYSTEMCTL, action, DService.LLM)
+            self.command(DService.SUDO, "-n", DService.SYSTEMCTL,
+                         "--no-block", "restart", DService.LLM)
         except subprocess.SubprocessError as error:
             raise RuntimeError(self.text(DText.UI_OPERATION_FAILED)) from error
 
